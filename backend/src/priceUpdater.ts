@@ -30,6 +30,10 @@ if (!MANUAL_ORACLE_ADDRESS) {
   throw new Error("Missing MANUAL_ORACLE_ADDRESS in environment variables");
 }
 
+const rpcUrl = ARC_RPC_URL!;
+const privateKey = PRIVATE_KEY!;
+const manualOracleAddress = MANUAL_ORACLE_ADDRESS!;
+
 const manualOracleAbi = [
   "function setPrices(address[] tokens, uint256[] prices) external",
 ];
@@ -120,10 +124,10 @@ async function updatePrices() {
     console.log(`  ${token.name}: $${prices[token.name].toFixed(4)}`);
   });
 
-  const provider = new ethers.JsonRpcProvider(ARC_RPC_URL);
-  const normalizedPrivateKey = PRIVATE_KEY.startsWith("0x") ? PRIVATE_KEY : `0x${PRIVATE_KEY}`;
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const normalizedPrivateKey = privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`;
   const wallet = new ethers.Wallet(normalizedPrivateKey, provider);
-  const oracle = new ethers.Contract(MANUAL_ORACLE_ADDRESS, manualOracleAbi, wallet);
+  const oracle = new ethers.Contract(manualOracleAddress, manualOracleAbi, wallet);
 
   const tokenAddresses = TOKENS.map((token) => token.address);
   const oraclePrices = TOKENS.map((token) => usdToOraclePrice(prices[token.name]));

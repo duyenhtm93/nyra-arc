@@ -1,4 +1,4 @@
-## Nyra Lending Frontend
+## Nyra Finance
 
 Nyra is a lending interface running exclusively on Arc Testnet. It provides a streamlined experience for lenders and borrowers to interact with the Nyra protocol.
 
