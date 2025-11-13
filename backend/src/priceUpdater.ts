@@ -74,12 +74,24 @@ const TOKENS: TokenConfig[] = [
 
 type PriceMap = Record<string, number>;
 
+const coingeckoHeaders: Record<string, string> = {
+  accept: "application/json",
+  "user-agent": "nyra-price-bot/1.0",
+};
+
+const coingeckoApiKey = process.env.COINGECKO_API_KEY;
+if (coingeckoApiKey) {
+  coingeckoHeaders["x-cg-pro-api-key"] = coingeckoApiKey;
+}
+
 async function fetchPrices(): Promise<PriceMap> {
   const coingeckoTokens = TOKENS.filter((token) => token.coingeckoId);
   const ids = coingeckoTokens.map((token) => token.coingeckoId).join(",");
   const url = `${COINGECKO_API_BASE}/simple/price?ids=${ids}&vs_currencies=usd`;
 
-  const response = await fetch(url);
+  const response = await fetch(url, {
+    headers: coingeckoHeaders,
+  });
 
   if (!response.ok) {
     throw new Error(`Failed to fetch prices: ${response.status} ${response.statusText}`);
