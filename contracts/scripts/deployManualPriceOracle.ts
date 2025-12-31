@@ -2,6 +2,7 @@ import hre from "hardhat";
 
 const ARC_USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 const ARC_EURC_ADDRESS = "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a";
+const KEEPER_ADDRESS = "0x88fdcc9eb336816c2ebd697db89bec5b76f68c4a";
 
 const INITIAL_PRICES = {
   EURC: 1.0,        // $1.00
@@ -55,6 +56,10 @@ async function main() {
   ];
 
   await (await oracle.setPrices(tokens, prices)).wait();
+
+  console.log("🔄 Authorizing keeper...");
+  await (await oracle.setKeeper(KEEPER_ADDRESS, true)).wait();
+  console.log(`✅ Keeper ${KEEPER_ADDRESS} authorized!`);
 
   console.log("✅ Initial prices configured:");
   console.log(`   • EURC = $${INITIAL_PRICES.EURC.toFixed(2)}`);

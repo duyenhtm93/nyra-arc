@@ -53,50 +53,6 @@
         "IPriceOracle"
       ]
     },
-    "/home/pc/arc-network/01-arc-nyra/contracts/node_modules/@openzeppelin/contracts/utils/ReentrancyGuard.sol": {
-      "lastModificationDate": 1762835091818,
-      "contentHash": "190613e556d509d9e9a0ea43dc5d891d",
-      "sourceName": "@openzeppelin/contracts/utils/ReentrancyGuard.sol",
-      "solcConfig": {
-        "version": "0.8.24",
-        "settings": {
-          "metadata": {
-            "bytecodeHash": "none",
-            "useLiteralContent": true
-          },
-          "optimizer": {
-            "enabled": true,
-            "runs": 800
-          },
-          "evmVersion": "cancun",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata",
-                "devdoc",
-                "userdoc",
-                "storageLayout",
-                "evm.gasEstimates"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [],
-      "versionPragmas": [
-        "^0.8.20"
-      ],
-      "artifacts": [
-        "ReentrancyGuard"
-      ]
-    },
     "/home/pc/arc-network/01-arc-nyra/contracts/node_modules/@openzeppelin/contracts/access/Ownable.sol": {
       "lastModificationDate": 1762835091818,
       "contentHash": "d3c790edc9ccf808a17c5a6cd13614fd",
@@ -185,6 +141,50 @@
       ],
       "artifacts": [
         "IERC20"
+      ]
+    },
+    "/home/pc/arc-network/01-arc-nyra/contracts/node_modules/@openzeppelin/contracts/utils/ReentrancyGuard.sol": {
+      "lastModificationDate": 1762835091818,
+      "contentHash": "190613e556d509d9e9a0ea43dc5d891d",
+      "sourceName": "@openzeppelin/contracts/utils/ReentrancyGuard.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "metadata": {
+            "bytecodeHash": "none",
+            "useLiteralContent": true
+          },
+          "optimizer": {
+            "enabled": true,
+            "runs": 800
+          },
+          "evmVersion": "cancun",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata",
+                "devdoc",
+                "userdoc",
+                "storageLayout",
+                "evm.gasEstimates"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "ReentrancyGuard"
       ]
     },
     "/home/pc/arc-network/01-arc-nyra/contracts/node_modules/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol": {
@@ -839,8 +839,8 @@
       ]
     },
     "/home/pc/arc-network/01-arc-nyra/contracts/contracts/ManualPriceOracle.sol": {
-      "lastModificationDate": 1762835091948,
-      "contentHash": "775fdb5d1e84407c5f62fc1c25d9ad08",
+      "lastModificationDate": 1767152833583,
+      "contentHash": "e61159049c1cc1180880b3cc3c043b0f",
       "sourceName": "contracts/ManualPriceOracle.sol",
       "solcConfig": {
         "version": "0.8.24",

@@ -20,19 +20,29 @@ contract ManualPriceOracle is Ownable {
     address public immutable usdc;
 
     mapping(address => PriceData) private prices;
+    mapping(address => bool) public isKeeper;
+
+    modifier onlyKeeper() {
+        require(msg.sender == owner() || isKeeper[msg.sender], "ManualPriceOracle: unauthorized");
+        _;
+    }
 
     constructor(address _usdc, address initialOwner) Ownable(initialOwner) {
         require(_usdc != address(0), "ManualPriceOracle: invalid USDC");
         usdc = _usdc;
     }
 
-    function setPrice(address token, uint256 price) external onlyOwner {
+    function setKeeper(address keeper, bool status) external onlyOwner {
+        isKeeper[keeper] = status;
+    }
+
+    function setPrice(address token, uint256 price) external onlyKeeper {
         require(token != address(0), "ManualPriceOracle: invalid token");
         require(token != usdc, "ManualPriceOracle: USDC immutable");
         _setPrice(token, price);
     }
 
-    function setPrices(address[] calldata tokens, uint256[] calldata priceList) external onlyOwner {
+    function setPrices(address[] calldata tokens, uint256[] calldata priceList) external onlyKeeper {
         require(tokens.length == priceList.length, "ManualPriceOracle: length mismatch");
         for (uint256 i = 0; i < tokens.length; i++) {
             require(tokens[i] != address(0), "ManualPriceOracle: invalid token");

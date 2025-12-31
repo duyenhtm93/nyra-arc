@@ -28,8 +28,10 @@ export interface ManualPriceOracleInterface extends Interface {
     nameOrSignature:
       | "MAX_STALE_TIME"
       | "getPrice"
+      | "isKeeper"
       | "owner"
       | "renounceOwnership"
+      | "setKeeper"
       | "setPrice"
       | "setPrices"
       | "transferOwnership"
@@ -48,10 +50,18 @@ export interface ManualPriceOracleInterface extends Interface {
     functionFragment: "getPrice",
     values: [AddressLike]
   ): string;
+  encodeFunctionData(
+    functionFragment: "isKeeper",
+    values: [AddressLike]
+  ): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "renounceOwnership",
     values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "setKeeper",
+    values: [AddressLike, boolean]
   ): string;
   encodeFunctionData(
     functionFragment: "setPrice",
@@ -72,11 +82,13 @@ export interface ManualPriceOracleInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "getPrice", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "isKeeper", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "renounceOwnership",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "setKeeper", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "setPrice", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "setPrices", data: BytesLike): Result;
   decodeFunctionResult(
@@ -164,9 +176,17 @@ export interface ManualPriceOracle extends BaseContract {
 
   getPrice: TypedContractMethod<[token: AddressLike], [bigint], "view">;
 
+  isKeeper: TypedContractMethod<[arg0: AddressLike], [boolean], "view">;
+
   owner: TypedContractMethod<[], [string], "view">;
 
   renounceOwnership: TypedContractMethod<[], [void], "nonpayable">;
+
+  setKeeper: TypedContractMethod<
+    [keeper: AddressLike, status: boolean],
+    [void],
+    "nonpayable"
+  >;
 
   setPrice: TypedContractMethod<
     [token: AddressLike, price: BigNumberish],
@@ -199,11 +219,21 @@ export interface ManualPriceOracle extends BaseContract {
     nameOrSignature: "getPrice"
   ): TypedContractMethod<[token: AddressLike], [bigint], "view">;
   getFunction(
+    nameOrSignature: "isKeeper"
+  ): TypedContractMethod<[arg0: AddressLike], [boolean], "view">;
+  getFunction(
     nameOrSignature: "owner"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "renounceOwnership"
   ): TypedContractMethod<[], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "setKeeper"
+  ): TypedContractMethod<
+    [keeper: AddressLike, status: boolean],
+    [void],
+    "nonpayable"
+  >;
   getFunction(
     nameOrSignature: "setPrice"
   ): TypedContractMethod<
