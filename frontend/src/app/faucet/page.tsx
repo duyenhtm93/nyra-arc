@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback, memo } from "react";
+import Image from "next/image";
 import { useWallets } from "@privy-io/react-auth";
 import { useToast } from "@/hooks/useToast";
 import { getAddress } from "@/utils/addresses";
@@ -19,24 +20,24 @@ const TEST_TOKEN_ABI = [
   },
 ] as const;
 
+const TOKENS = [
+  { symbol: "USDC", name: "USD Coin", icon: "/usdc.svg", address: getAddress("USDC") },
+  { symbol: "EURC", name: "Euro Coin", icon: "/eurc.svg", address: getAddress("EURC") },
+  { symbol: "BTC", name: "Bitcoin", icon: "/btc.svg", address: getAddress("BTC") },
+  { symbol: "ETH", name: "Ethereum", icon: "/eth.svg", address: getAddress("ETH") },
+  { symbol: "BNB", name: "Binance Coin", icon: "/bnb.svg", address: getAddress("BNB") },
+] as const;
+
 export default function FaucetPage() {
   const { wallets } = useWallets();
   const toast = useToast();
   const { address: wagmiAddress, isConnecting } = useAccount();
   const userAddress = useMemo(() => wagmiAddress || wallets[0]?.address, [wagmiAddress, wallets]);
 
-  const tokens = [
-    { symbol: "USDC", name: "USD Coin", icon: "/usdc.svg", address: getAddress("USDC") },
-    { symbol: "EURC", name: "Euro Coin", icon: "/eurc.svg", address: getAddress("EURC") },
-    { symbol: "BTC", name: "Bitcoin", icon: "/btc.svg", address: getAddress("BTC") },
-    { symbol: "ETH", name: "Ethereum", icon: "/eth.svg", address: getAddress("ETH") },
-    { symbol: "BNB", name: "Binance Coin", icon: "/bnb.svg", address: getAddress("BNB") },
-  ] as const;
-
   type ClaimState = Record<string, { success: boolean; message: string }>;
   const [claimResults, setClaimResults] = useState<ClaimState>({});
 
-  const FaucetRow = ({ token }: { token: (typeof tokens)[number] }) => {
+  const FaucetRow = memo(({ token }: { token: (typeof TOKENS)[number] }) => {
     const { wallets: privyWallets } = useWallets();
     const { isConnected } = useAccount();
     const isExternalFaucet = token.symbol === "USDC" || token.symbol === "EURC";
@@ -111,7 +112,7 @@ export default function FaucetPage() {
       }
     }, [isTxSuccess, isTxError, txHash, txError, pendingToastId, toast, token.symbol, isExternalFaucet, refetch, refetchClaimStatus]);
 
-    const handleClaim = async () => {
+    const handleClaim = useCallback(async () => {
       if (isExternalFaucet) {
         window.open("https://faucet.circle.com/", "_blank");
         return;
@@ -175,21 +176,32 @@ export default function FaucetPage() {
           [token.symbol]: { success: false, message },
         }));
       }
-    };
+    }, [isExternalFaucet, userAddress, isConnected, token.address, token.symbol, writeContractAsync, privyWallets, toast]);
 
-    const displayBalance = isLoading
-      ? "Loading..."
-      : balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const displayBalance = useMemo(() => {
+      return isLoading
+        ? "Loading..."
+        : balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }, [isLoading, balance]);
 
-    const isAlreadyClaimed = isExternalFaucet
-      ? false
-      : claimResults[token.symbol]?.success || hasClaimedRaw === true;
+    const isAlreadyClaimed = useMemo(() => {
+      return isExternalFaucet
+        ? false
+        : claimResults[token.symbol]?.success || hasClaimedRaw === true;
+    }, [isExternalFaucet, claimResults, token.symbol, hasClaimedRaw]);
 
     return (
-      <tr className="hover:bg-gray-700/30 transition-colors">
+      <tr>
         <td className="px-6 py-4 w-1/3">
           <div className="flex items-center gap-3">
-            <img src={token.icon} alt={token.symbol} className="w-8 h-8" />
+            <div className="relative w-8 h-8">
+              <Image
+                src={token.icon}
+                alt={token.symbol}
+                fill
+                className="object-contain"
+              />
+            </div>
             <div>
               <div className="font-medium text-white">{token.symbol}</div>
               <div className="text-xs text-gray-400">{token.name}</div>
@@ -205,67 +217,47 @@ export default function FaucetPage() {
             disabled={
               isExternalFaucet ? false : !userAddress || isConnecting || isTxPending || isAlreadyClaimed
             }
-            className="px-3 py-1 text-sm rounded transition-colors text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1 text-sm rounded transition-colors text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 active:scale-[0.98]"
             style={{ backgroundColor: "var(--button-active)" }}
           >
             {isExternalFaucet
               ? "Claim"
               : isAlreadyClaimed
-              ? "Claimed"
-              : isTxPending
-              ? "Claiming..."
-              : "Claim"}
+                ? "Claimed"
+                : isTxPending
+                  ? "Claiming..."
+                  : "Claim"}
           </button>
         </td>
       </tr>
     );
-  };
+  });
 
   return (
-    <div className="min-h-screen p-6" style={{ backgroundColor: "var(--background-primary)" }}>
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div
-          className="rounded-lg overflow-hidden border border-gray-600 mx-auto"
-          style={{ backgroundColor: "var(--background-secondary)", maxWidth: "60%" }}
-        >
-          <div className="px-6 py-4 border-b border-gray-700">
-            <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
-              Faucet Tokens
-            </h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-700">
-                <tr>
-                  <th
-                    className="px-6 py-3 text-left text-xs font-normal tracking-wider w-1/3"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
-                    Asset
-                  </th>
-                  <th
-                    className="px-6 py-3 text-right text-xs font-normal tracking-wider w-1/3"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
-                    Wallet Balance
-                  </th>
-                  <th
-                    className="px-6 py-3 text-right text-xs font-normal tracking-wider w-1/3"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-600">
-                {tokens.map((token) => (
-                  <FaucetRow key={token.symbol} token={token} />
-                ))}
-              </tbody>
-            </table>
-          </div>
+    <div className="space-y-8 animate-in fade-in duration-500">
+
+      <div className="premium-card rounded-lg overflow-hidden shadow-2xl mx-auto" style={{ maxWidth: "800px" }}>
+        <div className="px-6 py-5 border-b border-gray-700/50 bg-gray-800/20">
+          <h2 className="text-xl font-semibold text-white" style={{ fontFamily: 'var(--font-headline)' }}>Available Tokens</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-white/5 border-b border-gray-700/50">
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-400">Asset</th>
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-400 text-right">Wallet Balance</th>
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-400 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-700/30">
+              {TOKENS.map((token) => (
+                <FaucetRow key={token.symbol} token={token} />
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   );
 }
+

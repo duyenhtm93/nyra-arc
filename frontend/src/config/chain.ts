@@ -16,9 +16,9 @@ export const chainConfigs = {
     chainId: '0x4ce5d2',
     chainName: 'Arc Testnet',
     nativeCurrency: {
-      name: 'USD Coin',
-      symbol: 'USDC',
-      decimals: 6
+      name: 'Ether',
+      symbol: 'ETH',
+      decimals: 18
     },
     rpcUrls: [
       process.env.NEXT_PUBLIC_ARC_RPC_URL || 'https://rpc.testnet.arc.network'

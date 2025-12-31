@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { usePrivy } from "@privy-io/react-auth";
 import { useAccount, useDisconnect } from "wagmi";
 import { useWallets } from "@privy-io/react-auth";
@@ -71,14 +72,12 @@ export default function AppHeader() {
   }, [isWalletDropdownOpen]);
 
   const requestArcNetwork = useCallback(async () => {
-    const chainName = "Arc Testnet";
     const arcChainHex = "0x4ce5d2";
 
     try {
       const active = wallets.find((w) => w.address === address) || wallets[0];
       if (active) {
         await active.switchChain(ARC_CHAIN_ID);
-        toast.showNetworkSwitched(chainName);
         return true;
       }
     } catch (error: any) {
@@ -86,7 +85,6 @@ export default function AppHeader() {
       if (error?.code === 4902) {
         try {
           await addChainToWallet(ARC_CHAIN_ID);
-          toast.showNetworkSwitched(chainName);
           return true;
         } catch (addError) {
           console.error("❌ Add Arc network failed (embedded):", addError);
@@ -100,7 +98,6 @@ export default function AppHeader() {
           method: "wallet_switchEthereumChain",
           params: [{ chainId: arcChainHex }],
         });
-        toast.showNetworkSwitched(chainName);
         return true;
       } catch (switchError: any) {
         console.error("❌ wallet_switchEthereumChain failed:", switchError);
@@ -111,7 +108,6 @@ export default function AppHeader() {
               method: "wallet_switchEthereumChain",
               params: [{ chainId: arcChainHex }],
             });
-            toast.showNetworkSwitched(chainName);
             return true;
           } catch (addError) {
             console.error("❌ Add Arc network failed (EOA):", addError);
@@ -120,9 +116,8 @@ export default function AppHeader() {
       }
     }
 
-    toast.showWarning("Please switch your wallet to Arc Testnet.");
     return false;
-  }, [wallets, address, toast]);
+  }, [wallets, address]);
 
   useEffect(() => {
     if (!authenticated) {
@@ -163,11 +158,11 @@ export default function AppHeader() {
   const mainTabs = TAB_CONFIG.filter((tab) => tab.id !== "faucet");
 
   return (
-    <header className="w-full border-b-2 border-gray-600" style={{ backgroundColor: "var(--background)" }}>
+    <header className="w-full border-b-2 border-gray-600 relative z-50" style={{ backgroundColor: "var(--background)" }}>
       <div className="w-4/5 mx-auto text-white py-4 flex items-center gap-8">
         <div className="flex items-center gap-2">
-          <span className="text-orange-500 font-bold text-3xl" style={{ fontFamily: "var(--font-headline)" }}>
-            Nyra
+          <span className="text-3xl font-black bg-gradient-to-r from-orange-500 to-red-600 bg-clip-text text-transparent tracking-tighter" style={{ fontFamily: 'var(--font-headline)' }}>
+            NYRA
           </span>
         </div>
 
@@ -189,7 +184,14 @@ export default function AppHeader() {
               }}
               disabled
             >
-              <img src="/arc.svg" alt="Arc Testnet" className="w-6 h-6" />
+              <div className="relative w-6 h-6">
+                <Image
+                  src="/arc.svg"
+                  alt="Arc Testnet"
+                  fill
+                  className="object-contain"
+                />
+              </div>
               <span className="text-sm text-white">Arc Testnet</span>
               {!isOnArcNetwork && (
                 <span className="text-xs text-red-400 ml-1">Switch in wallet</span>
@@ -214,7 +216,7 @@ export default function AppHeader() {
               </button>
 
               {isWalletDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-full bg-gray-800 rounded-lg shadow-lg border border-gray-700 py-2">
+                <div className="absolute right-0 mt-2 w-full bg-gray-800 rounded-lg shadow-lg border border-gray-700 py-2 z-50">
                   <div className="px-4 py-2 border-b border-gray-700">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-300" style={{ fontFamily: "var(--font-mono)" }}>

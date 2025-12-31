@@ -77,9 +77,46 @@ export const LoanManagerABI = {
           "internalType": "uint256",
           "name": "amount",
           "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "scaledAmount",
+          "type": "uint256"
         }
       ],
       "name": "DepositedToPool",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "borrowRate",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "borrowIndex",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "supplyIndex",
+          "type": "uint256"
+        }
+      ],
+      "name": "InterestAccrued",
       "type": "event"
     },
     {
@@ -100,13 +137,13 @@ export const LoanManagerABI = {
         {
           "indexed": false,
           "internalType": "uint256",
-          "name": "repayAmount",
+          "name": "amount",
           "type": "uint256"
         },
         {
           "indexed": false,
           "internalType": "uint256",
-          "name": "remainingDebt",
+          "name": "scaledAmount",
           "type": "uint256"
         }
       ],
@@ -119,37 +156,6 @@ export const LoanManagerABI = {
         {
           "indexed": true,
           "internalType": "address",
-          "name": "payer",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "borrower",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "token",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "paid",
-          "type": "uint256"
-        }
-      ],
-      "name": "LoanRepaidFor",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
           "name": "user",
           "type": "address"
         },
@@ -162,13 +168,13 @@ export const LoanManagerABI = {
         {
           "indexed": false,
           "internalType": "uint256",
-          "name": "principal",
+          "name": "amount",
           "type": "uint256"
         },
         {
           "indexed": false,
           "internalType": "uint256",
-          "name": "rateBps",
+          "name": "scaledAmount",
           "type": "uint256"
         }
       ],
@@ -198,38 +204,6 @@ export const LoanManagerABI = {
       "anonymous": false,
       "inputs": [
         {
-          "indexed": true,
-          "internalType": "address",
-          "name": "user",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        }
-      ],
-      "name": "RewardDistributed",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "distributor",
-          "type": "address"
-        }
-      ],
-      "name": "RewardsDistributorUpdated",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
           "indexed": false,
           "internalType": "address",
           "name": "token",
@@ -238,13 +212,25 @@ export const LoanManagerABI = {
         {
           "indexed": false,
           "internalType": "uint256",
-          "name": "borrowRateBps",
+          "name": "baseRate",
           "type": "uint256"
         },
         {
           "indexed": false,
           "internalType": "uint256",
-          "name": "lendRateBps",
+          "name": "slope1",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "slope2",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "optimalUtil",
           "type": "uint256"
         }
       ],
@@ -269,24 +255,57 @@ export const LoanManagerABI = {
         {
           "indexed": false,
           "internalType": "uint256",
-          "name": "principalOut",
+          "name": "amount",
           "type": "uint256"
         },
         {
           "indexed": false,
           "internalType": "uint256",
-          "name": "interestOut",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "totalOut",
+          "name": "scaledAmount",
           "type": "uint256"
         }
       ],
       "name": "Withdrawn",
       "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "RAY",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "SECONDS_PER_YEAR",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "name": "accrueInterest",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
     },
     {
       "inputs": [
@@ -305,56 +324,6 @@ export const LoanManagerABI = {
         }
       ],
       "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "user",
-          "type": "address"
-        }
-      ],
-      "name": "calculateInterest",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "user",
-          "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "token",
-          "type": "address"
-        }
-      ],
-      "name": "calculateLenderReward",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "claimRewards",
-      "outputs": [],
-      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
@@ -389,8 +358,14 @@ export const LoanManagerABI = {
       "type": "function"
     },
     {
-      "inputs": [],
-      "name": "getActiveBorrowerCount",
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "name": "getAvailableLiquidity",
       "outputs": [
         {
           "internalType": "uint256",
@@ -402,13 +377,24 @@ export const LoanManagerABI = {
       "type": "function"
     },
     {
-      "inputs": [],
-      "name": "getActiveBorrowers",
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "name": "getAvailableToWithdraw",
       "outputs": [
         {
-          "internalType": "address[]",
+          "internalType": "uint256",
           "name": "",
-          "type": "address[]"
+          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -422,7 +408,7 @@ export const LoanManagerABI = {
           "type": "address"
         }
       ],
-      "name": "getAvailableLiquidity",
+      "name": "getBorrowRate",
       "outputs": [
         {
           "internalType": "uint256",
@@ -494,6 +480,44 @@ export const LoanManagerABI = {
       "inputs": [
         {
           "internalType": "address",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "name": "getSupplyRate",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "name": "getUtilizationRate",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
           "name": "",
           "type": "address"
         }
@@ -545,17 +569,7 @@ export const LoanManagerABI = {
       "outputs": [
         {
           "internalType": "uint256",
-          "name": "deposited",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "depositTime",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "rewardClaimed",
+          "name": "scaledBalance",
           "type": "uint256"
         }
       ],
@@ -579,27 +593,7 @@ export const LoanManagerABI = {
         },
         {
           "internalType": "uint256",
-          "name": "principal",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "rate",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "totalInterest",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "createdAt",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "duration",
+          "name": "scaledPrincipal",
           "type": "uint256"
         },
         {
@@ -664,16 +658,26 @@ export const LoanManagerABI = {
           "type": "address"
         }
       ],
-      "name": "ratesByToken",
+      "name": "rateConfigs",
       "outputs": [
         {
           "internalType": "uint256",
-          "name": "borrowRate",
+          "name": "baseRate",
           "type": "uint256"
         },
         {
           "internalType": "uint256",
-          "name": "lendRate",
+          "name": "slope1",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "slope2",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "optimalUtil",
           "type": "uint256"
         }
       ],
@@ -750,12 +754,12 @@ export const LoanManagerABI = {
         },
         {
           "internalType": "uint256",
-          "name": "principal",
+          "name": "amount",
           "type": "uint256"
         },
         {
           "internalType": "uint256",
-          "name": "duration",
+          "name": "",
           "type": "uint256"
         }
       ],
@@ -807,7 +811,7 @@ export const LoanManagerABI = {
       "inputs": [
         {
           "internalType": "address",
-          "name": "token",
+          "name": "_token",
           "type": "address"
         }
       ],
@@ -838,12 +842,27 @@ export const LoanManagerABI = {
         },
         {
           "internalType": "uint256",
-          "name": "borrowRateBps",
+          "name": "baseRate",
           "type": "uint256"
         },
         {
           "internalType": "uint256",
-          "name": "lendRateBps",
+          "name": "slope1",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "slope2",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "optimalUtil",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "reserveFactor",
           "type": "uint256"
         }
       ],
@@ -887,7 +906,22 @@ export const LoanManagerABI = {
         },
         {
           "internalType": "uint256",
-          "name": "totalRepayments",
+          "name": "lastUpdate",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "borrowIndex",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "supplyIndex",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "reserveFactor",
           "type": "uint256"
         }
       ],
@@ -921,29 +955,6 @@ export const LoanManagerABI = {
         }
       ],
       "name": "withdrawAll",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "token",
-          "type": "address"
-        },
-        {
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        },
-        {
-          "internalType": "address",
-          "name": "to",
-          "type": "address"
-        }
-      ],
-      "name": "withdrawProtocolProfit",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

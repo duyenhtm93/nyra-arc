@@ -52,13 +52,13 @@ async function main() {
   const ethContract = await hardhatEthers.getContractAt("TestToken", ethDeployment.address, deployerSigner);
   const bnbContract = await hardhatEthers.getContractAt("TestToken", bnbDeployment.address, deployerSigner);
 
-  await (await btcContract.setFaucetAmount(hardhatEthers.parseUnits("0.1", 8))).wait();
-  await (await ethContract.setFaucetAmount(hardhatEthers.parseUnits("1", 18))).wait();
-  await (await bnbContract.setFaucetAmount(hardhatEthers.parseUnits("1", 18))).wait();
+  await (await btcContract.setFaucetAmount(hardhatEthers.parseUnits("0.001", 8))).wait();
+  await (await ethContract.setFaucetAmount(hardhatEthers.parseUnits("0.01", 18))).wait();
+  await (await bnbContract.setFaucetAmount(hardhatEthers.parseUnits("0.1", 18))).wait();
 
-  console.log("✅ BTC:", btcDeployment.address, "faucet 0.1 BTC");
-  console.log("✅ ETH:", ethDeployment.address, "faucet 1 ETH");
-  console.log("✅ BNB:", bnbDeployment.address, "faucet 1 BNB");
+  console.log("✅ BTC:", btcDeployment.address, "faucet 0.001 BTC");
+  console.log("✅ ETH:", ethDeployment.address, "faucet 0.01 ETH");
+  console.log("✅ BNB:", bnbDeployment.address, "faucet 0.1 BNB");
 }
 
 main().catch((err) => {

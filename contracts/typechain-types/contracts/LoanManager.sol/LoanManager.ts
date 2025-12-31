@@ -26,18 +26,20 @@ import type {
 export interface LoanManagerInterface extends Interface {
   getFunction(
     nameOrSignature:
+      | "RAY"
+      | "SECONDS_PER_YEAR"
+      | "accrueInterest"
       | "activeBorrowers"
-      | "calculateInterest"
-      | "calculateLenderReward"
-      | "claimRewards"
       | "collateralManager"
       | "depositToPool"
-      | "getActiveBorrowerCount"
-      | "getActiveBorrowers"
       | "getAvailableLiquidity"
+      | "getAvailableToWithdraw"
+      | "getBorrowRate"
       | "getLoanToken"
       | "getOutstandingLoan"
       | "getOutstandingLoanUSD"
+      | "getSupplyRate"
+      | "getUtilizationRate"
       | "isBorrower"
       | "isSupportedToken"
       | "lenders"
@@ -45,7 +47,7 @@ export interface LoanManagerInterface extends Interface {
       | "owner"
       | "priceOracle"
       | "protocolProfit"
-      | "ratesByToken"
+      | "rateConfigs"
       | "renounceOwnership"
       | "repay"
       | "repayAll"
@@ -61,37 +63,31 @@ export interface LoanManagerInterface extends Interface {
       | "treasury"
       | "withdraw"
       | "withdrawAll"
-      | "withdrawProtocolProfit"
   ): FunctionFragment;
 
   getEvent(
     nameOrSignatureOrTopic:
       | "DepositedToPool"
+      | "InterestAccrued"
       | "LoanRepaid"
-      | "LoanRepaidFor"
       | "LoanRequested"
       | "OwnershipTransferred"
-      | "RewardDistributed"
-      | "RewardsDistributorUpdated"
       | "TokenSupported"
       | "Withdrawn"
   ): EventFragment;
 
+  encodeFunctionData(functionFragment: "RAY", values?: undefined): string;
   encodeFunctionData(
-    functionFragment: "activeBorrowers",
-    values: [BigNumberish]
+    functionFragment: "SECONDS_PER_YEAR",
+    values?: undefined
   ): string;
   encodeFunctionData(
-    functionFragment: "calculateInterest",
+    functionFragment: "accrueInterest",
     values: [AddressLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "calculateLenderReward",
-    values: [AddressLike, AddressLike]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "claimRewards",
-    values?: undefined
+    functionFragment: "activeBorrowers",
+    values: [BigNumberish]
   ): string;
   encodeFunctionData(
     functionFragment: "collateralManager",
@@ -102,15 +98,15 @@ export interface LoanManagerInterface extends Interface {
     values: [AddressLike, BigNumberish]
   ): string;
   encodeFunctionData(
-    functionFragment: "getActiveBorrowerCount",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "getActiveBorrowers",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
     functionFragment: "getAvailableLiquidity",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "getAvailableToWithdraw",
+    values: [AddressLike, AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "getBorrowRate",
     values: [AddressLike]
   ): string;
   encodeFunctionData(
@@ -123,6 +119,14 @@ export interface LoanManagerInterface extends Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "getOutstandingLoanUSD",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "getSupplyRate",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "getUtilizationRate",
     values: [AddressLike]
   ): string;
   encodeFunctionData(
@@ -148,7 +152,7 @@ export interface LoanManagerInterface extends Interface {
     values: [AddressLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "ratesByToken",
+    functionFragment: "rateConfigs",
     values: [AddressLike]
   ): string;
   encodeFunctionData(
@@ -193,7 +197,14 @@ export interface LoanManagerInterface extends Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "supportToken",
-    values: [AddressLike, BigNumberish, BigNumberish]
+    values: [
+      AddressLike,
+      BigNumberish,
+      BigNumberish,
+      BigNumberish,
+      BigNumberish,
+      BigNumberish
+    ]
   ): string;
   encodeFunctionData(
     functionFragment: "transferOwnership",
@@ -211,25 +222,18 @@ export interface LoanManagerInterface extends Interface {
     functionFragment: "withdrawAll",
     values: [AddressLike]
   ): string;
-  encodeFunctionData(
-    functionFragment: "withdrawProtocolProfit",
-    values: [AddressLike, BigNumberish, AddressLike]
-  ): string;
 
+  decodeFunctionResult(functionFragment: "RAY", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "SECONDS_PER_YEAR",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "accrueInterest",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "activeBorrowers",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "calculateInterest",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "calculateLenderReward",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "claimRewards",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -241,15 +245,15 @@ export interface LoanManagerInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "getActiveBorrowerCount",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "getActiveBorrowers",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
     functionFragment: "getAvailableLiquidity",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "getAvailableToWithdraw",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "getBorrowRate",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -262,6 +266,14 @@ export interface LoanManagerInterface extends Interface {
   ): Result;
   decodeFunctionResult(
     functionFragment: "getOutstandingLoanUSD",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "getSupplyRate",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "getUtilizationRate",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "isBorrower", data: BytesLike): Result;
@@ -281,7 +293,7 @@ export interface LoanManagerInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "ratesByToken",
+    functionFragment: "rateConfigs",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -329,23 +341,51 @@ export interface LoanManagerInterface extends Interface {
     functionFragment: "withdrawAll",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(
-    functionFragment: "withdrawProtocolProfit",
-    data: BytesLike
-  ): Result;
 }
 
 export namespace DepositedToPoolEvent {
   export type InputTuple = [
     user: AddressLike,
     token: AddressLike,
-    amount: BigNumberish
+    amount: BigNumberish,
+    scaledAmount: BigNumberish
   ];
-  export type OutputTuple = [user: string, token: string, amount: bigint];
+  export type OutputTuple = [
+    user: string,
+    token: string,
+    amount: bigint,
+    scaledAmount: bigint
+  ];
   export interface OutputObject {
     user: string;
     token: string;
     amount: bigint;
+    scaledAmount: bigint;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace InterestAccruedEvent {
+  export type InputTuple = [
+    token: AddressLike,
+    borrowRate: BigNumberish,
+    borrowIndex: BigNumberish,
+    supplyIndex: BigNumberish
+  ];
+  export type OutputTuple = [
+    token: string,
+    borrowRate: bigint,
+    borrowIndex: bigint,
+    supplyIndex: bigint
+  ];
+  export interface OutputObject {
+    token: string;
+    borrowRate: bigint;
+    borrowIndex: bigint;
+    supplyIndex: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -357,45 +397,20 @@ export namespace LoanRepaidEvent {
   export type InputTuple = [
     user: AddressLike,
     token: AddressLike,
-    repayAmount: BigNumberish,
-    remainingDebt: BigNumberish
+    amount: BigNumberish,
+    scaledAmount: BigNumberish
   ];
   export type OutputTuple = [
     user: string,
     token: string,
-    repayAmount: bigint,
-    remainingDebt: bigint
+    amount: bigint,
+    scaledAmount: bigint
   ];
   export interface OutputObject {
     user: string;
     token: string;
-    repayAmount: bigint;
-    remainingDebt: bigint;
-  }
-  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
-  export type Filter = TypedDeferredTopicFilter<Event>;
-  export type Log = TypedEventLog<Event>;
-  export type LogDescription = TypedLogDescription<Event>;
-}
-
-export namespace LoanRepaidForEvent {
-  export type InputTuple = [
-    payer: AddressLike,
-    borrower: AddressLike,
-    token: AddressLike,
-    paid: BigNumberish
-  ];
-  export type OutputTuple = [
-    payer: string,
-    borrower: string,
-    token: string,
-    paid: bigint
-  ];
-  export interface OutputObject {
-    payer: string;
-    borrower: string;
-    token: string;
-    paid: bigint;
+    amount: bigint;
+    scaledAmount: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -407,20 +422,20 @@ export namespace LoanRequestedEvent {
   export type InputTuple = [
     user: AddressLike,
     token: AddressLike,
-    principal: BigNumberish,
-    rateBps: BigNumberish
+    amount: BigNumberish,
+    scaledAmount: BigNumberish
   ];
   export type OutputTuple = [
     user: string,
     token: string,
-    principal: bigint,
-    rateBps: bigint
+    amount: bigint,
+    scaledAmount: bigint
   ];
   export interface OutputObject {
     user: string;
     token: string;
-    principal: bigint;
-    rateBps: bigint;
+    amount: bigint;
+    scaledAmount: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -441,46 +456,27 @@ export namespace OwnershipTransferredEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
-export namespace RewardDistributedEvent {
-  export type InputTuple = [user: AddressLike, amount: BigNumberish];
-  export type OutputTuple = [user: string, amount: bigint];
-  export interface OutputObject {
-    user: string;
-    amount: bigint;
-  }
-  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
-  export type Filter = TypedDeferredTopicFilter<Event>;
-  export type Log = TypedEventLog<Event>;
-  export type LogDescription = TypedLogDescription<Event>;
-}
-
-export namespace RewardsDistributorUpdatedEvent {
-  export type InputTuple = [distributor: AddressLike];
-  export type OutputTuple = [distributor: string];
-  export interface OutputObject {
-    distributor: string;
-  }
-  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
-  export type Filter = TypedDeferredTopicFilter<Event>;
-  export type Log = TypedEventLog<Event>;
-  export type LogDescription = TypedLogDescription<Event>;
-}
-
 export namespace TokenSupportedEvent {
   export type InputTuple = [
     token: AddressLike,
-    borrowRateBps: BigNumberish,
-    lendRateBps: BigNumberish
+    baseRate: BigNumberish,
+    slope1: BigNumberish,
+    slope2: BigNumberish,
+    optimalUtil: BigNumberish
   ];
   export type OutputTuple = [
     token: string,
-    borrowRateBps: bigint,
-    lendRateBps: bigint
+    baseRate: bigint,
+    slope1: bigint,
+    slope2: bigint,
+    optimalUtil: bigint
   ];
   export interface OutputObject {
     token: string;
-    borrowRateBps: bigint;
-    lendRateBps: bigint;
+    baseRate: bigint;
+    slope1: bigint;
+    slope2: bigint;
+    optimalUtil: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -492,23 +488,20 @@ export namespace WithdrawnEvent {
   export type InputTuple = [
     user: AddressLike,
     token: AddressLike,
-    principalOut: BigNumberish,
-    interestOut: BigNumberish,
-    totalOut: BigNumberish
+    amount: BigNumberish,
+    scaledAmount: BigNumberish
   ];
   export type OutputTuple = [
     user: string,
     token: string,
-    principalOut: bigint,
-    interestOut: bigint,
-    totalOut: bigint
+    amount: bigint,
+    scaledAmount: bigint
   ];
   export interface OutputObject {
     user: string;
     token: string;
-    principalOut: bigint;
-    interestOut: bigint;
-    totalOut: bigint;
+    amount: bigint;
+    scaledAmount: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -559,17 +552,17 @@ export interface LoanManager extends BaseContract {
     event?: TCEvent
   ): Promise<this>;
 
-  activeBorrowers: TypedContractMethod<[arg0: BigNumberish], [string], "view">;
+  RAY: TypedContractMethod<[], [bigint], "view">;
 
-  calculateInterest: TypedContractMethod<[user: AddressLike], [bigint], "view">;
+  SECONDS_PER_YEAR: TypedContractMethod<[], [bigint], "view">;
 
-  calculateLenderReward: TypedContractMethod<
-    [user: AddressLike, token: AddressLike],
-    [bigint],
-    "view"
+  accrueInterest: TypedContractMethod<
+    [token: AddressLike],
+    [void],
+    "nonpayable"
   >;
 
-  claimRewards: TypedContractMethod<[], [void], "nonpayable">;
+  activeBorrowers: TypedContractMethod<[arg0: BigNumberish], [string], "view">;
 
   collateralManager: TypedContractMethod<[], [string], "view">;
 
@@ -579,15 +572,19 @@ export interface LoanManager extends BaseContract {
     "nonpayable"
   >;
 
-  getActiveBorrowerCount: TypedContractMethod<[], [bigint], "view">;
-
-  getActiveBorrowers: TypedContractMethod<[], [string[]], "view">;
-
   getAvailableLiquidity: TypedContractMethod<
     [token: AddressLike],
     [bigint],
     "view"
   >;
+
+  getAvailableToWithdraw: TypedContractMethod<
+    [user: AddressLike, token: AddressLike],
+    [bigint],
+    "view"
+  >;
+
+  getBorrowRate: TypedContractMethod<[token: AddressLike], [bigint], "view">;
 
   getLoanToken: TypedContractMethod<[user: AddressLike], [string], "view">;
 
@@ -603,32 +600,30 @@ export interface LoanManager extends BaseContract {
     "view"
   >;
 
+  getSupplyRate: TypedContractMethod<[token: AddressLike], [bigint], "view">;
+
+  getUtilizationRate: TypedContractMethod<
+    [token: AddressLike],
+    [bigint],
+    "view"
+  >;
+
   isBorrower: TypedContractMethod<[arg0: AddressLike], [boolean], "view">;
 
   isSupportedToken: TypedContractMethod<[arg0: AddressLike], [boolean], "view">;
 
   lenders: TypedContractMethod<
     [arg0: AddressLike, arg1: AddressLike],
-    [
-      [bigint, bigint, bigint] & {
-        deposited: bigint;
-        depositTime: bigint;
-        rewardClaimed: bigint;
-      }
-    ],
+    [bigint],
     "view"
   >;
 
   loans: TypedContractMethod<
     [arg0: AddressLike],
     [
-      [string, bigint, bigint, bigint, bigint, bigint, boolean] & {
+      [string, bigint, boolean] & {
         token: string;
-        principal: bigint;
-        rate: bigint;
-        totalInterest: bigint;
-        createdAt: bigint;
-        duration: bigint;
+        scaledPrincipal: bigint;
         active: boolean;
       }
     ],
@@ -641,9 +636,16 @@ export interface LoanManager extends BaseContract {
 
   protocolProfit: TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
 
-  ratesByToken: TypedContractMethod<
+  rateConfigs: TypedContractMethod<
     [arg0: AddressLike],
-    [[bigint, bigint] & { borrowRate: bigint; lendRate: bigint }],
+    [
+      [bigint, bigint, bigint, bigint] & {
+        baseRate: bigint;
+        slope1: bigint;
+        slope2: bigint;
+        optimalUtil: bigint;
+      }
+    ],
     "view"
   >;
 
@@ -664,7 +666,7 @@ export interface LoanManager extends BaseContract {
   >;
 
   requestLoan: TypedContractMethod<
-    [token: AddressLike, principal: BigNumberish, duration: BigNumberish],
+    [token: AddressLike, amount: BigNumberish, arg2: BigNumberish],
     [void],
     "nonpayable"
   >;
@@ -680,7 +682,7 @@ export interface LoanManager extends BaseContract {
   >;
 
   setRewardToken: TypedContractMethod<
-    [token: AddressLike],
+    [_token: AddressLike],
     [void],
     "nonpayable"
   >;
@@ -694,8 +696,11 @@ export interface LoanManager extends BaseContract {
   supportToken: TypedContractMethod<
     [
       token: AddressLike,
-      borrowRateBps: BigNumberish,
-      lendRateBps: BigNumberish
+      baseRate: BigNumberish,
+      slope1: BigNumberish,
+      slope2: BigNumberish,
+      optimalUtil: BigNumberish,
+      reserveFactor: BigNumberish
     ],
     [void],
     "nonpayable"
@@ -710,10 +715,13 @@ export interface LoanManager extends BaseContract {
   treasury: TypedContractMethod<
     [arg0: AddressLike],
     [
-      [bigint, bigint, bigint] & {
+      [bigint, bigint, bigint, bigint, bigint, bigint] & {
         totalDeposits: bigint;
         totalBorrows: bigint;
-        totalRepayments: bigint;
+        lastUpdate: bigint;
+        borrowIndex: bigint;
+        supplyIndex: bigint;
+        reserveFactor: bigint;
       }
     ],
     "view"
@@ -727,32 +735,22 @@ export interface LoanManager extends BaseContract {
 
   withdrawAll: TypedContractMethod<[token: AddressLike], [void], "nonpayable">;
 
-  withdrawProtocolProfit: TypedContractMethod<
-    [token: AddressLike, amount: BigNumberish, to: AddressLike],
-    [void],
-    "nonpayable"
-  >;
-
   getFunction<T extends ContractMethod = ContractMethod>(
     key: string | FunctionFragment
   ): T;
 
   getFunction(
+    nameOrSignature: "RAY"
+  ): TypedContractMethod<[], [bigint], "view">;
+  getFunction(
+    nameOrSignature: "SECONDS_PER_YEAR"
+  ): TypedContractMethod<[], [bigint], "view">;
+  getFunction(
+    nameOrSignature: "accrueInterest"
+  ): TypedContractMethod<[token: AddressLike], [void], "nonpayable">;
+  getFunction(
     nameOrSignature: "activeBorrowers"
   ): TypedContractMethod<[arg0: BigNumberish], [string], "view">;
-  getFunction(
-    nameOrSignature: "calculateInterest"
-  ): TypedContractMethod<[user: AddressLike], [bigint], "view">;
-  getFunction(
-    nameOrSignature: "calculateLenderReward"
-  ): TypedContractMethod<
-    [user: AddressLike, token: AddressLike],
-    [bigint],
-    "view"
-  >;
-  getFunction(
-    nameOrSignature: "claimRewards"
-  ): TypedContractMethod<[], [void], "nonpayable">;
   getFunction(
     nameOrSignature: "collateralManager"
   ): TypedContractMethod<[], [string], "view">;
@@ -764,13 +762,17 @@ export interface LoanManager extends BaseContract {
     "nonpayable"
   >;
   getFunction(
-    nameOrSignature: "getActiveBorrowerCount"
-  ): TypedContractMethod<[], [bigint], "view">;
-  getFunction(
-    nameOrSignature: "getActiveBorrowers"
-  ): TypedContractMethod<[], [string[]], "view">;
-  getFunction(
     nameOrSignature: "getAvailableLiquidity"
+  ): TypedContractMethod<[token: AddressLike], [bigint], "view">;
+  getFunction(
+    nameOrSignature: "getAvailableToWithdraw"
+  ): TypedContractMethod<
+    [user: AddressLike, token: AddressLike],
+    [bigint],
+    "view"
+  >;
+  getFunction(
+    nameOrSignature: "getBorrowRate"
   ): TypedContractMethod<[token: AddressLike], [bigint], "view">;
   getFunction(
     nameOrSignature: "getLoanToken"
@@ -782,6 +784,12 @@ export interface LoanManager extends BaseContract {
     nameOrSignature: "getOutstandingLoanUSD"
   ): TypedContractMethod<[user: AddressLike], [bigint], "view">;
   getFunction(
+    nameOrSignature: "getSupplyRate"
+  ): TypedContractMethod<[token: AddressLike], [bigint], "view">;
+  getFunction(
+    nameOrSignature: "getUtilizationRate"
+  ): TypedContractMethod<[token: AddressLike], [bigint], "view">;
+  getFunction(
     nameOrSignature: "isBorrower"
   ): TypedContractMethod<[arg0: AddressLike], [boolean], "view">;
   getFunction(
@@ -791,13 +799,7 @@ export interface LoanManager extends BaseContract {
     nameOrSignature: "lenders"
   ): TypedContractMethod<
     [arg0: AddressLike, arg1: AddressLike],
-    [
-      [bigint, bigint, bigint] & {
-        deposited: bigint;
-        depositTime: bigint;
-        rewardClaimed: bigint;
-      }
-    ],
+    [bigint],
     "view"
   >;
   getFunction(
@@ -805,13 +807,9 @@ export interface LoanManager extends BaseContract {
   ): TypedContractMethod<
     [arg0: AddressLike],
     [
-      [string, bigint, bigint, bigint, bigint, bigint, boolean] & {
+      [string, bigint, boolean] & {
         token: string;
-        principal: bigint;
-        rate: bigint;
-        totalInterest: bigint;
-        createdAt: bigint;
-        duration: bigint;
+        scaledPrincipal: bigint;
         active: boolean;
       }
     ],
@@ -827,10 +825,17 @@ export interface LoanManager extends BaseContract {
     nameOrSignature: "protocolProfit"
   ): TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
   getFunction(
-    nameOrSignature: "ratesByToken"
+    nameOrSignature: "rateConfigs"
   ): TypedContractMethod<
     [arg0: AddressLike],
-    [[bigint, bigint] & { borrowRate: bigint; lendRate: bigint }],
+    [
+      [bigint, bigint, bigint, bigint] & {
+        baseRate: bigint;
+        slope1: bigint;
+        slope2: bigint;
+        optimalUtil: bigint;
+      }
+    ],
     "view"
   >;
   getFunction(
@@ -856,7 +861,7 @@ export interface LoanManager extends BaseContract {
   getFunction(
     nameOrSignature: "requestLoan"
   ): TypedContractMethod<
-    [token: AddressLike, principal: BigNumberish, duration: BigNumberish],
+    [token: AddressLike, amount: BigNumberish, arg2: BigNumberish],
     [void],
     "nonpayable"
   >;
@@ -871,7 +876,7 @@ export interface LoanManager extends BaseContract {
   ): TypedContractMethod<[_oracle: AddressLike], [void], "nonpayable">;
   getFunction(
     nameOrSignature: "setRewardToken"
-  ): TypedContractMethod<[token: AddressLike], [void], "nonpayable">;
+  ): TypedContractMethod<[_token: AddressLike], [void], "nonpayable">;
   getFunction(
     nameOrSignature: "setRewardsDistributor"
   ): TypedContractMethod<[distributor: AddressLike], [void], "nonpayable">;
@@ -880,8 +885,11 @@ export interface LoanManager extends BaseContract {
   ): TypedContractMethod<
     [
       token: AddressLike,
-      borrowRateBps: BigNumberish,
-      lendRateBps: BigNumberish
+      baseRate: BigNumberish,
+      slope1: BigNumberish,
+      slope2: BigNumberish,
+      optimalUtil: BigNumberish,
+      reserveFactor: BigNumberish
     ],
     [void],
     "nonpayable"
@@ -894,10 +902,13 @@ export interface LoanManager extends BaseContract {
   ): TypedContractMethod<
     [arg0: AddressLike],
     [
-      [bigint, bigint, bigint] & {
+      [bigint, bigint, bigint, bigint, bigint, bigint] & {
         totalDeposits: bigint;
         totalBorrows: bigint;
-        totalRepayments: bigint;
+        lastUpdate: bigint;
+        borrowIndex: bigint;
+        supplyIndex: bigint;
+        reserveFactor: bigint;
       }
     ],
     "view"
@@ -912,13 +923,6 @@ export interface LoanManager extends BaseContract {
   getFunction(
     nameOrSignature: "withdrawAll"
   ): TypedContractMethod<[token: AddressLike], [void], "nonpayable">;
-  getFunction(
-    nameOrSignature: "withdrawProtocolProfit"
-  ): TypedContractMethod<
-    [token: AddressLike, amount: BigNumberish, to: AddressLike],
-    [void],
-    "nonpayable"
-  >;
 
   getEvent(
     key: "DepositedToPool"
@@ -928,18 +932,18 @@ export interface LoanManager extends BaseContract {
     DepositedToPoolEvent.OutputObject
   >;
   getEvent(
+    key: "InterestAccrued"
+  ): TypedContractEvent<
+    InterestAccruedEvent.InputTuple,
+    InterestAccruedEvent.OutputTuple,
+    InterestAccruedEvent.OutputObject
+  >;
+  getEvent(
     key: "LoanRepaid"
   ): TypedContractEvent<
     LoanRepaidEvent.InputTuple,
     LoanRepaidEvent.OutputTuple,
     LoanRepaidEvent.OutputObject
-  >;
-  getEvent(
-    key: "LoanRepaidFor"
-  ): TypedContractEvent<
-    LoanRepaidForEvent.InputTuple,
-    LoanRepaidForEvent.OutputTuple,
-    LoanRepaidForEvent.OutputObject
   >;
   getEvent(
     key: "LoanRequested"
@@ -954,20 +958,6 @@ export interface LoanManager extends BaseContract {
     OwnershipTransferredEvent.InputTuple,
     OwnershipTransferredEvent.OutputTuple,
     OwnershipTransferredEvent.OutputObject
-  >;
-  getEvent(
-    key: "RewardDistributed"
-  ): TypedContractEvent<
-    RewardDistributedEvent.InputTuple,
-    RewardDistributedEvent.OutputTuple,
-    RewardDistributedEvent.OutputObject
-  >;
-  getEvent(
-    key: "RewardsDistributorUpdated"
-  ): TypedContractEvent<
-    RewardsDistributorUpdatedEvent.InputTuple,
-    RewardsDistributorUpdatedEvent.OutputTuple,
-    RewardsDistributorUpdatedEvent.OutputObject
   >;
   getEvent(
     key: "TokenSupported"
@@ -985,7 +975,7 @@ export interface LoanManager extends BaseContract {
   >;
 
   filters: {
-    "DepositedToPool(address,address,uint256)": TypedContractEvent<
+    "DepositedToPool(address,address,uint256,uint256)": TypedContractEvent<
       DepositedToPoolEvent.InputTuple,
       DepositedToPoolEvent.OutputTuple,
       DepositedToPoolEvent.OutputObject
@@ -994,6 +984,17 @@ export interface LoanManager extends BaseContract {
       DepositedToPoolEvent.InputTuple,
       DepositedToPoolEvent.OutputTuple,
       DepositedToPoolEvent.OutputObject
+    >;
+
+    "InterestAccrued(address,uint256,uint256,uint256)": TypedContractEvent<
+      InterestAccruedEvent.InputTuple,
+      InterestAccruedEvent.OutputTuple,
+      InterestAccruedEvent.OutputObject
+    >;
+    InterestAccrued: TypedContractEvent<
+      InterestAccruedEvent.InputTuple,
+      InterestAccruedEvent.OutputTuple,
+      InterestAccruedEvent.OutputObject
     >;
 
     "LoanRepaid(address,address,uint256,uint256)": TypedContractEvent<
@@ -1005,17 +1006,6 @@ export interface LoanManager extends BaseContract {
       LoanRepaidEvent.InputTuple,
       LoanRepaidEvent.OutputTuple,
       LoanRepaidEvent.OutputObject
-    >;
-
-    "LoanRepaidFor(address,address,address,uint256)": TypedContractEvent<
-      LoanRepaidForEvent.InputTuple,
-      LoanRepaidForEvent.OutputTuple,
-      LoanRepaidForEvent.OutputObject
-    >;
-    LoanRepaidFor: TypedContractEvent<
-      LoanRepaidForEvent.InputTuple,
-      LoanRepaidForEvent.OutputTuple,
-      LoanRepaidForEvent.OutputObject
     >;
 
     "LoanRequested(address,address,uint256,uint256)": TypedContractEvent<
@@ -1040,29 +1030,7 @@ export interface LoanManager extends BaseContract {
       OwnershipTransferredEvent.OutputObject
     >;
 
-    "RewardDistributed(address,uint256)": TypedContractEvent<
-      RewardDistributedEvent.InputTuple,
-      RewardDistributedEvent.OutputTuple,
-      RewardDistributedEvent.OutputObject
-    >;
-    RewardDistributed: TypedContractEvent<
-      RewardDistributedEvent.InputTuple,
-      RewardDistributedEvent.OutputTuple,
-      RewardDistributedEvent.OutputObject
-    >;
-
-    "RewardsDistributorUpdated(address)": TypedContractEvent<
-      RewardsDistributorUpdatedEvent.InputTuple,
-      RewardsDistributorUpdatedEvent.OutputTuple,
-      RewardsDistributorUpdatedEvent.OutputObject
-    >;
-    RewardsDistributorUpdated: TypedContractEvent<
-      RewardsDistributorUpdatedEvent.InputTuple,
-      RewardsDistributorUpdatedEvent.OutputTuple,
-      RewardsDistributorUpdatedEvent.OutputObject
-    >;
-
-    "TokenSupported(address,uint256,uint256)": TypedContractEvent<
+    "TokenSupported(address,uint256,uint256,uint256,uint256)": TypedContractEvent<
       TokenSupportedEvent.InputTuple,
       TokenSupportedEvent.OutputTuple,
       TokenSupportedEvent.OutputObject
@@ -1073,7 +1041,7 @@ export interface LoanManager extends BaseContract {
       TokenSupportedEvent.OutputObject
     >;
 
-    "Withdrawn(address,address,uint256,uint256,uint256)": TypedContractEvent<
+    "Withdrawn(address,address,uint256,uint256)": TypedContractEvent<
       WithdrawnEvent.InputTuple,
       WithdrawnEvent.OutputTuple,
       WithdrawnEvent.OutputObject

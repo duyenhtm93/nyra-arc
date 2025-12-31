@@ -1,5 +1,5 @@
 import { useReadContract, useReadContracts, useWriteContract, useAccount } from "wagmi";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useWallets } from "@privy-io/react-auth";
 import { formatUnits, parseUnits } from "viem";
 import { getTokenInfo } from "@/utils/tokenInfo";
@@ -31,13 +31,13 @@ export function useTokenBalance(tokenAddress: string, userAddress?: string) {
 
 // Hook để lấy user collateral balances từ CollateralManager
 export function useUserCollaterals(userAddress?: string, refreshKey?: number) {
-  
+
   // Danh sách token được support làm collateral
-  const supportedTokens = [getAddress("BTC"), getAddress("ETH"), getAddress("BNB")];
+  const supportedTokens = useMemo(() => [getAddress("BTC"), getAddress("ETH"), getAddress("BNB")], []);
 
   // Batch query tất cả collateral balances cùng lúc
   const { data, isLoading, error, refetch } = useReadContracts({
-    contracts: supportedTokens.map((tokenAddress) => ({
+    contracts: supportedTokens.map((tokenAddress: string) => ({
       address: getAddress("CollateralManager"),
       abi: [
         {
@@ -57,7 +57,7 @@ export function useUserCollaterals(userAddress?: string, refreshKey?: number) {
     })),
     query: {
       enabled: !!userAddress,
-      staleTime: 0, // Luôn cho phép refetch
+      staleTime: 30000, // 30s cache for tab switching
       refetchOnWindowFocus: false,
     },
   });
@@ -69,38 +69,38 @@ export function useUserCollaterals(userAddress?: string, refreshKey?: number) {
     }
   }, [refreshKey, refetch]);
 
-  if (isLoading) {
-    return { collaterals: [], isLoading: true, error: null };
-  }
+  // Format collaterals data with useMemo
+  const formattedCollaterals = useMemo(() => {
+    if (isLoading || !data) return [];
 
-  // Format collaterals data
-  const formattedCollaterals = data?.map((result, index) => {
-    const collateral = result.result as bigint | undefined;
-    
-    if (!collateral || collateral === BigInt(0)) {
-      return null;
-    }
+    return data.map((result: any, index: number) => {
+      const collateral = result.result as bigint | undefined;
 
-    const tokenInfo = getTokenInfo(supportedTokens[index]);
-    return {
-      tokenAddress: supportedTokens[index],
-      symbol: tokenInfo.symbol,
-      icon: tokenInfo.icon,
-      name: tokenInfo.name,
-      amount: parseFloat(formatUnits(collateral, tokenInfo.decimals)),
-    };
-  }).filter((item): item is NonNullable<typeof item> => item !== null) || [];
+      if (!collateral || collateral === BigInt(0)) {
+        return null;
+      }
 
-  return { collaterals: formattedCollaterals, isLoading: false, error: null };
+      const tokenInfo = getTokenInfo(supportedTokens[index]);
+      return {
+        tokenAddress: supportedTokens[index],
+        symbol: tokenInfo.symbol,
+        icon: tokenInfo.icon,
+        name: tokenInfo.name,
+        amount: parseFloat(formatUnits(collateral, tokenInfo.decimals)),
+      };
+    }).filter((item: any): item is NonNullable<typeof item> => item !== null);
+  }, [data, isLoading, supportedTokens]);
+
+  return { collaterals: formattedCollaterals, isLoading, error: null };
 }
 
 // Hook để lấy wallet balances (tái sử dụng từ useUserSupply)
 export function useWalletBalances(userAddress?: string, refreshKey?: number) {
-  const tokenAddresses = [getAddress("BTC"), getAddress("ETH"), getAddress("BNB")];
+  const tokenAddresses = useMemo(() => [getAddress("BTC"), getAddress("ETH"), getAddress("BNB")], []);
 
   // Batch query tất cả balances cùng lúc
   const { data, isLoading, error, refetch } = useReadContracts({
-    contracts: tokenAddresses.map((tokenAddress) => ({
+    contracts: tokenAddresses.map((tokenAddress: string) => ({
       address: tokenAddress as `0x${string}`,
       abi: [
         {
@@ -117,7 +117,7 @@ export function useWalletBalances(userAddress?: string, refreshKey?: number) {
     })),
     query: {
       enabled: !!userAddress,
-      staleTime: 0, // Luôn cho phép refetch
+      staleTime: 30000, // 30s cache for tab switching
       refetchOnWindowFocus: false,
     },
   });
@@ -129,21 +129,23 @@ export function useWalletBalances(userAddress?: string, refreshKey?: number) {
     }
   }, [refreshKey, refetch]);
 
-  const balances = tokenAddresses.map((tokenAddress, index) => {
-    const tokenInfo = getTokenInfo(tokenAddress);
-    const balance = data?.[index]?.result as bigint | undefined;
-    const formattedBalance = balance ? parseFloat(formatUnits(balance, tokenInfo.decimals)) : 0;
+  const balances = useMemo(() => {
+    return tokenAddresses.map((tokenAddress: string, index: number) => {
+      const tokenInfo = getTokenInfo(tokenAddress);
+      const balance = data?.[index]?.result as bigint | undefined;
+      const formattedBalance = balance ? parseFloat(formatUnits(balance, tokenInfo.decimals)) : 0;
 
-    return {
-      tokenAddress,
-      symbol: tokenInfo.symbol,
-      icon: tokenInfo.icon,
-      name: tokenInfo.name,
-      balance: formattedBalance,
-      isLoading: false,
-      error: data?.[index]?.error,
-    };
-  });
+      return {
+        tokenAddress,
+        symbol: tokenInfo.symbol,
+        icon: tokenInfo.icon,
+        name: tokenInfo.name,
+        balance: formattedBalance,
+        isLoading: false,
+        error: data?.[index]?.error,
+      };
+    });
+  }, [data, tokenAddresses]);
 
   return { balances, isLoading, error: null };
 }
@@ -182,7 +184,7 @@ export function useCollateralDetails(userAddress?: string, refreshKey?: number) 
   const totalCollateralValue = collateralData?.[0] ? parseFloat(formatUnits(collateralData[0], 8)) : 0;
   const maxLoanUSD = collateralData?.[1] ? parseFloat(formatUnits(collateralData[1], 8)) : 0;
   const debtUSD = collateralData?.[2] ? parseFloat(formatUnits(collateralData[2], 8)) : 0;
-  
+
   // Health Factor từ contract (18 decimals)
   let healthFactor = 999; // Default khi chưa có loan
   if (collateralData?.[3]) {
@@ -190,7 +192,7 @@ export function useCollateralDetails(userAddress?: string, refreshKey?: number) 
     // Nếu health factor quá lớn (vô cực từ contract), set về 999
     healthFactor = rawHealthFactor > 1e10 ? 999 : rawHealthFactor;
   }
-  
+
   // Available to Borrow = Max Loan Allowed - Outstanding Debt
   const availableToBorrow = Math.max(0, maxLoanUSD - debtUSD);
 
@@ -265,7 +267,7 @@ export function useHealthFactor(userAddress?: string) {
 
   // Convert 1e18 to human readable number
   // Contract trả về với 18 decimals: 1.0 = 1e18, 2.0 = 2e18
-  let hf = healthFactor 
+  let hf = healthFactor
     ? parseFloat(formatUnits(healthFactor, 18))
     : 0;
 
@@ -299,7 +301,7 @@ export function useLiquidation() {
   const { writeContract, data: hash, error, isPending } = useWriteContract();
   const { address } = useAccount();
   const { wallets } = useWallets();
-  
+
   // Dùng address từ wallets nếu useAccount không có
   const userAddress = address || wallets[0]?.address;
 
@@ -320,7 +322,7 @@ export function useLiquidation() {
 
     try {
       const amountWei = parseUnits(repayAmount, repayTokenInfo.decimals);
-      
+
       await writeContract({
         address: getAddress("CollateralManager"),
         abi: [

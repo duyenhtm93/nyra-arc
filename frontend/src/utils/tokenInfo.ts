@@ -54,12 +54,6 @@ const TOKEN_METADATA: Record<string, TokenInfo> = {
     name: "Binance Coin",
     decimals: 18,
   },
-  [getAddress("NYRA")]: {
-    symbol: "NYRA",
-    icon: "/nyra.svg",
-    name: "NYRA Token",
-    decimals: 18,
-  },
 };
 
 /**

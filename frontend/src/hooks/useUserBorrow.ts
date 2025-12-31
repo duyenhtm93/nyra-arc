@@ -2,7 +2,7 @@
 
 import { useReadContract } from "wagmi";
 import { useAccount } from "wagmi";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useWallets, usePrivy } from "@privy-io/react-auth";
 import { ABIs } from "@/abi/contracts";
 import { formatUnits } from "viem";
@@ -72,7 +72,7 @@ export function useUserBorrows(userAddress?: string, refreshKey?: number) {
     chainId: ARC_CHAIN_ID,
     query: {
       enabled: !!userAddress,
-      staleTime: 0,
+      staleTime: 30000,
       refetchOnWindowFocus: false,
     },
   });
@@ -94,7 +94,7 @@ export function useUserBorrows(userAddress?: string, refreshKey?: number) {
     chainId: ARC_CHAIN_ID,
     query: {
       enabled: !!userAddress,
-      staleTime: 0,
+      staleTime: 30000,
       refetchOnWindowFocus: false,
     },
   });
@@ -110,34 +110,30 @@ export function useUserBorrows(userAddress?: string, refreshKey?: number) {
   const isLoading = loanLoading || outstandingLoading;
   const error = loanError || outstandingError;
 
-  if (isLoading) {
-    return { borrows: [], isLoading: true, error };
-  }
+  // Memoize formattedBorrows to prevent reference changes
+  const formattedBorrows = useMemo(() => {
+    if (isLoading || !loan || !loan.active || loan.principal === BigInt(0)) {
+      return [];
+    }
 
+    const tokenAddress = loan.token || getAddress("USDC");
+    const tokenInfo = getTokenInfo(tokenAddress);
 
-  // Nếu không có loan active, trả về array rỗng
-  if (!loan || !loan.active || loan.principal === BigInt(0)) {
-    return { borrows: [], isLoading: false, error };
-  }
+    return [{
+      tokenAddress,
+      symbol: tokenInfo.symbol,
+      icon: tokenInfo.icon,
+      name: tokenInfo.name,
+      amount: parseFloat(formatUnits(loan.principal, tokenInfo.decimals)),
+      interestOwed: outstandingLoan ? parseFloat(formatUnits(outstandingLoan - loan.principal, tokenInfo.decimals)) : 0,
+      totalDebt: outstandingLoan ? parseFloat(formatUnits(outstandingLoan, tokenInfo.decimals)) : 0,
+      rate: parseFloat(loan.rate.toString()) / 100,
+      createdAt: loan.createdAt,
+      duration: loan.duration,
+    }];
+  }, [isLoading, loan, outstandingLoan]);
 
-  // Lấy token address từ loan struct (contract mới đã lưu)
-  const tokenAddress = loan.token || getAddress("USDC"); // Fallback to USDC nếu null
-  const tokenInfo = getTokenInfo(tokenAddress);
-  
-  const formattedBorrows = [{
-    tokenAddress,
-    symbol: tokenInfo.symbol,
-    icon: tokenInfo.icon,
-    name: tokenInfo.name,
-    amount: parseFloat(formatUnits(loan.principal, tokenInfo.decimals)),
-    interestOwed: outstandingLoan ? parseFloat(formatUnits(outstandingLoan - loan.principal, tokenInfo.decimals)) : 0,
-    totalDebt: outstandingLoan ? parseFloat(formatUnits(outstandingLoan, tokenInfo.decimals)) : 0,
-    rate: parseFloat(loan.rate.toString()) / 100, // Convert bps to percentage
-    createdAt: loan.createdAt,
-    duration: loan.duration,
-  }];
-
-  return { borrows: formattedBorrows, isLoading: false, error };
+  return { borrows: formattedBorrows, isLoading, error };
 }
 
 // Hook để lấy health factor từ CollateralManager contract
@@ -164,7 +160,7 @@ export function useHealthFactor(userAddress?: string, refreshKey?: number) {
     chainId: ARC_CHAIN_ID,
     query: {
       enabled: !!userAddress,
-      staleTime: 0,
+      staleTime: 30000,
       refetchOnWindowFocus: false,
     },
   });
@@ -180,7 +176,7 @@ export function useHealthFactor(userAddress?: string, refreshKey?: number) {
   const healthFactorRaw = collateralData?.[3];
 
   // Convert 1e18 to human readable number
-  let hf = healthFactorRaw 
+  let hf = healthFactorRaw
     ? parseFloat(formatUnits(healthFactorRaw, 18))
     : 0;
 
@@ -199,11 +195,11 @@ export function useHealthFactor(userAddress?: string, refreshKey?: number) {
     status = 'warning';
   }
 
-  return { 
+  return {
     healthFactor: hf,
     status,
-    isLoading: false, 
-    error: undefined 
+    isLoading: false,
+    error: undefined
   };
 }
 
@@ -226,7 +222,7 @@ export function useAvailableToBorrow(tokenAddress: string, userAddress?: string,
     chainId: ARC_CHAIN_ID,
     query: {
       enabled: !!userAddress,
-      staleTime: 0,
+      staleTime: 30000,
       refetchOnWindowFocus: false,
     },
   });
@@ -248,7 +244,7 @@ export function useAvailableToBorrow(tokenAddress: string, userAddress?: string,
     chainId: ARC_CHAIN_ID,
     query: {
       enabled: !!userAddress,
-      staleTime: 0,
+      staleTime: 30000,
       refetchOnWindowFocus: false,
     },
   });
@@ -270,7 +266,7 @@ export function useAvailableToBorrow(tokenAddress: string, userAddress?: string,
     chainId: ARC_CHAIN_ID,
     query: {
       enabled: !!userAddress,
-      staleTime: 0,
+      staleTime: 30000,
       refetchOnWindowFocus: false,
     },
   });
@@ -290,21 +286,21 @@ export function useAvailableToBorrow(tokenAddress: string, userAddress?: string,
   // Sử dụng giá trị từ contract thay vì tính toán frontend
   const maxLoanAllowed = maxLoanUSD ? parseFloat(formatUnits(maxLoanUSD, 8)) : 0; // Oracle 8 decimals
   const loanAmount = outstandingLoanUSD ? parseFloat(formatUnits(outstandingLoanUSD, 8)) : 0; // Oracle 8 decimals
-  
+
   const availableUSDValue = Math.max(0, maxLoanAllowed - loanAmount);
-  
+
   // Convert USD sang token amount theo giá thực tế từ market data
   const tokenInfo = getTokenInfo(tokenAddress);
-  
+
   // Sử dụng giá từ market data thực tế (giống như BorrowableAssetRow)
   const marketData = useMarketData();
   const getTokenPrice = (tokenAddress: string) => {
     const market = marketData.find(m => m.tokenAddress === tokenAddress);
     return market?.price || 0; // ✅ Return 0 thay vì 1.00 nếu không có giá
   };
-  
+
   const tokenPrice = getTokenPrice(tokenAddress);
-  
+
   // ✅ Chỉ tính nếu có giá hợp lệ (> 0)
   const availableTokenAmount = tokenPrice > 0 ? availableUSDValue / tokenPrice : 0;
 
@@ -366,10 +362,10 @@ export function useUserBorrow(refreshKey?: number) {
   const { ready, authenticated } = usePrivy();
   const { address } = useAccount();
   const { wallets } = useWallets();
-  
+
   // ✅ Chỉ lấy address khi Privy ready
   const userAddress = (ready && authenticated) ? (address || wallets[0]?.address) : undefined;
-  
+
   const userBorrows = useUserBorrows(userAddress, refreshKey);
   const healthFactor = useHealthFactor(userAddress, refreshKey);
   const supportedTokens = useSupportedBorrowTokens();

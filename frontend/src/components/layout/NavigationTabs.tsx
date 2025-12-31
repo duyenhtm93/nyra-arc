@@ -1,7 +1,8 @@
 "use client";
 
-import { useRouter, usePathname } from "next/navigation";
-import { memo, useCallback } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { memo } from "react";
 
 interface TabItem {
   id: string;
@@ -16,47 +17,32 @@ interface NavigationTabsProps {
 }
 
 function NavigationTabs({ tabs, className = "" }: NavigationTabsProps) {
-  const router = useRouter();
   const pathname = usePathname();
-
-  const handleTabClick = useCallback((path: string) => {
-    if (pathname !== path) {
-      router.push(path);
-    }
-  }, [router, pathname]);
 
   return (
     <nav className={`flex gap-1 ${className}`}>
       {tabs.map((tab) => {
         const isActive = pathname === tab.path;
         const isFaucet = tab.id === 'faucet';
-        
+
         return (
-          <button
+          <Link
             key={tab.id}
-            onClick={() => handleTabClick(tab.path)}
-            disabled={isActive && !isFaucet}
+            href={tab.path}
+            prefetch={true}
             className={`
               tab-button px-4 py-2 rounded-lg transition-all duration-200 h-[38px] flex items-center justify-center
-              ${
-                isFaucet
-                  ? "text-white font-semibold cursor-pointer border border-gray-600"
-                  : isActive
+              ${isFaucet
+                ? "text-white font-semibold cursor-pointer border border-gray-600"
+                : isActive
                   ? "text-white font-semibold cursor-default border border-gray-600"
-                  : "hover:text-white cursor-pointer"
+                  : "hover:text-white cursor-pointer text-gray-400"
               }
             `}
             style={{
-              backgroundColor: isFaucet
-                ? "var(--background-secondary)"
-                : isActive
+              backgroundColor: isFaucet || isActive
                 ? "var(--background-secondary)"
                 : "transparent",
-              color: isFaucet
-                ? "var(--text-primary)"
-                : isActive
-                ? "var(--text-primary)"
-                : "var(--text-secondary)",
             }}
             aria-current={isActive ? 'page' : undefined}
           >
@@ -64,7 +50,7 @@ function NavigationTabs({ tabs, className = "" }: NavigationTabsProps) {
               {tab.icon && <span>{tab.icon}</span>}
               <span>{tab.label}</span>
             </div>
-          </button>
+          </Link>
         );
       })}
     </nav>
@@ -72,3 +58,4 @@ function NavigationTabs({ tabs, className = "" }: NavigationTabsProps) {
 }
 
 export default memo(NavigationTabs);
+

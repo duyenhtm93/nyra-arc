@@ -2,11 +2,13 @@
   "name": "nyra-backend",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "tsc",
     "start": "node dist/priceUpdater.js",
     "update-prices": "tsx src/priceUpdater.ts",
-    "update-prices:watch": "tsx src/priceUpdater.ts --watch"
+    "update-prices:watch": "tsx src/priceUpdater.ts --watch",
+    "pm2:start": "pm2 start ecosystem.config.cjs"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

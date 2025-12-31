@@ -56,22 +56,40 @@ async function main() {
     console.log("ℹ️  PriceOracle already configured.");
   }
 
-  // 1️⃣ Configure interest rates
+  // 1️⃣ Configure interest rates (Dynamic Rate Model)
   const configureToken = async (
     token: string,
-    borrowRateBps: number,
-    lendRateBps: number,
+    baseRate: number,
+    slope1: number,
+    slope2: number,
+    optimalUtil: number,
+    reserveFactor: number,
     label: string,
   ) => {
-    console.log(`⚙️  Configuring ${label} rates...`);
-    await (await loanManager.supportToken(token, borrowRateBps, lendRateBps)).wait();
+    console.log(`⚙️  Configuring ${label} dynamic rates...`);
+    await (
+      await loanManager.supportToken(
+        token,
+        baseRate,
+        slope1,
+        slope2,
+        optimalUtil,
+        reserveFactor,
+      )
+    ).wait();
     console.log(
-      `✅ ${label} supported (Borrow=${(borrowRateBps / 100).toFixed(2)}%, Lend=${(lendRateBps / 100).toFixed(2)}%)`,
+      `✅ ${label} supported (Base=${(baseRate / 100).toFixed(2)}%, Slope1=${(
+        slope1 / 100
+      ).toFixed(2)}%, Slope2=${(slope2 / 100).toFixed(
+        2,
+      )}%, Optimal=${(optimalUtil / 100).toFixed(2)}%)`,
     );
   };
 
-  await configureToken(usdcAddr, 700, 400, "USDC");
-  await configureToken(eurcAddr, 650, 350, "EURC");
+  // Setup with standard DeFi parameters:
+  // baseRate=2%, slope1=4%, slope2=60%, optimal=80%, reserveFactor=10%
+  await configureToken(usdcAddr, 200, 400, 6000, 8000, 1000, "USDC");
+  await configureToken(eurcAddr, 200, 450, 6000, 8000, 1000, "EURC");
 
   // 2️⃣ Optional: set legacy reward token (if NYRA deployed)
   if (nyraAddr) {
@@ -112,22 +130,28 @@ async function main() {
 
   // 4️⃣ Treasury overview
   console.log("-----------------------------------------------");
-  console.log("📊 Checking treasury balances...");
+  console.log("📊 Checking treasury status...");
 
   const usdcTreasury = await loanManager.treasury(usdcAddr);
   const eurcTreasury = await loanManager.treasury(eurcAddr);
 
   console.log(
-    `   • USDC: deposits=${formatUnits(usdcTreasury.totalDeposits, 6)} | borrows=${formatUnits(
+    `   • USDC: scaledDeposits=${formatUnits(
+      usdcTreasury.totalDeposits,
+      6,
+    )} | scaledBorrows=${formatUnits(
       usdcTreasury.totalBorrows,
       6,
-    )} | repayments=${formatUnits(usdcTreasury.totalRepayments, 6)}`,
+    )} | borrowIndex=${formatUnits(usdcTreasury.borrowIndex, 27)}`,
   );
   console.log(
-    `   • EURC: deposits=${formatUnits(eurcTreasury.totalDeposits, 6)} | borrows=${formatUnits(
+    `   • EURC: scaledDeposits=${formatUnits(
+      eurcTreasury.totalDeposits,
+      6,
+    )} | scaledBorrows=${formatUnits(
       eurcTreasury.totalBorrows,
       6,
-    )} | repayments=${formatUnits(eurcTreasury.totalRepayments, 6)}`,
+    )} | borrowIndex=${formatUnits(eurcTreasury.borrowIndex, 27)}`,
   );
   console.log("-----------------------------------------------");
 

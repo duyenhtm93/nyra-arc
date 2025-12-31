@@ -2,7 +2,7 @@
 
 import { useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { useAccount } from "wagmi";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useWallets, usePrivy } from "@privy-io/react-auth";
 import { formatUnits, parseUnits } from "viem";
 import { getTokenInfo } from "@/utils/tokenInfo";
@@ -16,62 +16,30 @@ export function useUserSupplies(userAddress?: string, refreshKey?: number) {
   // Danh sách token được support
   const supportedTokens = SUPPORTED_TOKENS;
 
-  // Batch query lenders và rewards cùng lúc
+  // Batch query: getAvailableToWithdraw for actual balances (includes accrued interest)
   const { data, isLoading, error, refetch } = useReadContracts({
-    contracts: [
-      // Lenders queries
-      ...supportedTokens.map((tokenAddress) => ({
-        address: getAddress("LoanManager"),
-        abi: [
-          {
-            name: "lenders",
-            type: "function" as const,
-            stateMutability: "view" as const,
-            inputs: [
-              { name: "user", type: "address" },
-              { name: "token", type: "address" }
-            ],
-            outputs: [
-              {
-                name: "",
-                type: "tuple",
-                components: [
-                  { name: "deposited", type: "uint256" },
-                  { name: "depositTime", type: "uint256" },
-                  { name: "rewardClaimed", type: "uint256" }
-                ]
-              }
-            ],
-          },
-        ] as const,
-        functionName: "lenders",
-        args: userAddress ? [userAddress as `0x${string}`, tokenAddress as `0x${string}`] : undefined,
-        chainId: ARC_CHAIN_ID,
-      })),
-      // Rewards queries
-      ...supportedTokens.map((tokenAddress) => ({
-        address: getAddress("LoanManager"),
-        abi: [
-          {
-            name: "calculateLenderReward",
-            type: "function" as const,
-            stateMutability: "view" as const,
-            inputs: [
-              { name: "user", type: "address" },
-              { name: "token", type: "address" }
-            ],
-            outputs: [{ name: "", type: "uint256" }],
-          },
-        ] as const,
-        functionName: "calculateLenderReward",
-        args: userAddress ? [userAddress as `0x${string}`, tokenAddress as `0x${string}`] : undefined,
-        chainId: ARC_CHAIN_ID,
-      })),
-    ],
+    contracts: supportedTokens.map((tokenAddress) => ({
+      address: getAddress("LoanManager"),
+      abi: [
+        {
+          name: "getAvailableToWithdraw",
+          type: "function" as const,
+          stateMutability: "view" as const,
+          inputs: [
+            { name: "user", type: "address" },
+            { name: "token", type: "address" }
+          ],
+          outputs: [{ name: "", type: "uint256" }],
+        },
+      ] as const,
+      functionName: "getAvailableToWithdraw",
+      args: userAddress ? [userAddress as `0x${string}`, tokenAddress as `0x${string}`] : undefined,
+      chainId: ARC_CHAIN_ID,
+    })),
     query: {
       enabled: !!userAddress,
-      staleTime: 0,
-      refetchOnWindowFocus: false,
+      staleTime: 10000, // 10s cache - more frequent for dynamic rates
+      refetchOnWindowFocus: true,
     },
   });
 
@@ -82,31 +50,30 @@ export function useUserSupplies(userAddress?: string, refreshKey?: number) {
     }
   }, [refreshKey, refetch]);
 
-  if (isLoading) {
-    return { supplies: [], isLoading: true, error: null };
-  }
+  // Format supplies data with useMemo
+  const formattedSupplies = useMemo(() => {
+    if (isLoading || !data) return [];
 
-  // Format supplies data
-  const formattedSupplies = supportedTokens
-    .map((tokenAddress, index) => {
-      const lender = data?.[index]?.result as any;
-      const reward = data?.[index + 6]?.result as bigint | undefined;
-      
-      if (!lender || lender.deposited === BigInt(0)) {
-        return null;
-      }
+    return supportedTokens
+      .map((tokenAddress, index) => {
+        const balance = data?.[index]?.result as bigint | undefined;
 
-      const tokenInfo = getTokenInfo(tokenAddress);
-      return {
-        tokenAddress,
-        symbol: tokenInfo.symbol,
-        icon: tokenInfo.icon,
-        name: tokenInfo.name,
-        amount: parseFloat(formatUnits(lender.deposited, tokenInfo.decimals)),
-        interestEarned: reward ? parseFloat(formatUnits(reward, tokenInfo.decimals)) : 0,
-      };
-    })
-    .filter(Boolean);
+        if (!balance || balance === BigInt(0)) {
+          return null;
+        }
+
+        const tokenInfo = getTokenInfo(tokenAddress);
+        return {
+          tokenAddress,
+          symbol: tokenInfo.symbol,
+          icon: tokenInfo.icon,
+          name: tokenInfo.name,
+          amount: parseFloat(formatUnits(balance, tokenInfo.decimals)),
+          interestEarned: 0, // Interest is already included in getAvailableToWithdraw
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+  }, [data, isLoading, supportedTokens]);
 
   return { supplies: formattedSupplies, isLoading: false, error: null };
 }
@@ -134,7 +101,7 @@ export function useWalletBalances(userAddress?: string, refreshKey?: number) {
     })),
     query: {
       enabled: !!userAddress,
-      staleTime: 0,
+      staleTime: 30000, // 30s cache for tab switching
       refetchOnWindowFocus: false,
     },
   });
@@ -146,67 +113,51 @@ export function useWalletBalances(userAddress?: string, refreshKey?: number) {
     }
   }, [refreshKey, refetch]);
 
-  const balances = tokenAddresses.map((tokenAddress, index) => {
-    const tokenInfo = getTokenInfo(tokenAddress);
-    const balance = data?.[index]?.result as bigint | undefined;
-    const formattedBalance = balance ? parseFloat(formatUnits(balance, tokenInfo.decimals)) : 0;
+  const balances = useMemo(() => {
+    return tokenAddresses.map((tokenAddress, index) => {
+      const tokenInfo = getTokenInfo(tokenAddress);
+      const balance = data?.[index]?.result as bigint | undefined;
+      const formattedBalance = balance ? parseFloat(formatUnits(balance, tokenInfo.decimals)) : 0;
 
-    return {
-      tokenAddress,
-      symbol: tokenInfo.symbol,
-      icon: tokenInfo.icon,
-      name: tokenInfo.name,
-      balance: formattedBalance,
-      isLoading: false,
-      error: data?.[index]?.error,
-    };
-  });
+      return {
+        tokenAddress,
+        symbol: tokenInfo.symbol,
+        icon: tokenInfo.icon,
+        name: tokenInfo.name,
+        balance: formattedBalance,
+        isLoading: false,
+        error: (data?.[index]?.error as Error | null) || null,
+      };
+    });
+  }, [data, tokenAddresses]);
 
   return balances;
 }
 
 // Hook để lấy supply APY rates
 export function useSupplyRates(tokenAddress: string) {
-  const { data: rates, isLoading, error } = useReadContract({
+  const { data: rate, isLoading, error } = useReadContract({
     address: getAddress("LoanManager"),
     abi: [
       {
-        name: "ratesByToken",
+        name: "getSupplyRate",
         type: "function",
         stateMutability: "view",
         inputs: [{ name: "token", type: "address" }],
-        outputs: [
-          {
-            name: "",
-            type: "tuple",
-            components: [
-              { name: "borrowRate", type: "uint256" },
-              { name: "lendRate", type: "uint256" }
-            ]
-          }
-        ],
+        outputs: [{ name: "", type: "uint256" }],
       },
     ],
-      functionName: "ratesByToken",
-      args: [tokenAddress as `0x${string}`],
-      chainId: ARC_CHAIN_ID,
-      query: {
-        staleTime: 60000,
-        refetchOnWindowFocus: true,
-      },
+    functionName: "getSupplyRate",
+    args: [tokenAddress as `0x${string}`],
+    chainId: ARC_CHAIN_ID,
+    query: {
+      staleTime: 10000, // 10s for dynamic rates
+      refetchOnWindowFocus: true,
+    },
   });
 
-  // Handle both array and object return types
-  let lendRate = 0;
-  if (rates) {
-    if (Array.isArray(rates)) {
-      // rates = [borrowRate, lendRate]
-      lendRate = rates[1] ? parseFloat(formatUnits(rates[1], 2)) : 0;
-    } else if (rates.lendRate) {
-      // rates = {borrowRate, lendRate}
-      lendRate = parseFloat(formatUnits(rates.lendRate, 2));
-    }
-  }
+  // Rate is in bps (basis points), convert to percentage
+  const lendRate = rate ? Number(rate) / 100 : 0;
 
   return { lendRate, isLoading, error };
 }
@@ -224,13 +175,13 @@ export function useLTVRates(tokenAddress: string) {
         outputs: [{ name: "", type: "uint256" }],
       },
     ],
-      functionName: "ltvByToken",
-      args: [tokenAddress as `0x${string}`],
-      chainId: ARC_CHAIN_ID,
-      query: {
-        staleTime: 60000,
-        refetchOnWindowFocus: true,
-      },
+    functionName: "ltvByToken",
+    args: [tokenAddress as `0x${string}`],
+    chainId: ARC_CHAIN_ID,
+    query: {
+      staleTime: 60000,
+      refetchOnWindowFocus: true,
+    },
   });
 
   return { ltv: ltv ? Number(ltv) : 0, isLoading, error };
@@ -241,10 +192,10 @@ export function useUserSupply(refreshKey?: number) {
   const { ready, authenticated } = usePrivy();
   const { address } = useAccount();
   const { wallets } = useWallets();
-  
+
   // ✅ Chỉ lấy address khi Privy ready
   const userAddress = (ready && authenticated) ? (address || wallets[0]?.address) : undefined;
-  
+
   const userSupplies = useUserSupplies(userAddress, refreshKey);
   const walletBalances = useWalletBalances(userAddress, refreshKey);
 
@@ -260,75 +211,38 @@ export function useLenderInfo(tokenAddress: string) {
   const { ready, authenticated } = usePrivy();
   const { address } = useAccount();
   const { wallets } = useWallets();
-  
+
   // Dùng address từ wallets nếu useAccount không có
   const userAddress = (ready && authenticated) ? (address || wallets[0]?.address) : undefined;
-  
-  // Sử dụng cùng logic với useUserSupplies để đảm bảo consistency
-  const { data, isLoading: lenderLoading, error: lenderError } = useReadContracts({
-    contracts: [
-      // Lender query
+
+  // Use getAvailableToWithdraw which includes accrued interest
+  const { data: balance, isLoading: lenderLoading, error: lenderError } = useReadContract({
+    address: getAddress("LoanManager"),
+    abi: [
       {
-        address: getAddress("LoanManager"),
-        abi: [
-          {
-            name: "lenders",
-            type: "function" as const,
-            stateMutability: "view" as const,
-            inputs: [
-              { name: "user", type: "address" },
-              { name: "token", type: "address" }
-            ],
-            outputs: [
-              {
-                name: "",
-                type: "tuple",
-                components: [
-                  { name: "deposited", type: "uint256" },
-                  { name: "depositTime", type: "uint256" },
-                  { name: "rewardClaimed", type: "uint256" }
-                ]
-              }
-            ],
-          },
+        name: "getAvailableToWithdraw",
+        type: "function" as const,
+        stateMutability: "view" as const,
+        inputs: [
+          { name: "user", type: "address" },
+          { name: "token", type: "address" }
         ],
-        functionName: "lenders",
-        args: userAddress ? [userAddress as `0x${string}`, tokenAddress as `0x${string}`] : undefined,
-        chainId: ARC_CHAIN_ID,
-      },
-      // Reward query
-      {
-        address: getAddress("LoanManager"),
-        abi: [
-          {
-            name: "calculateLenderReward",
-            type: "function" as const,
-            stateMutability: "view" as const,
-            inputs: [
-              { name: "user", type: "address" },
-              { name: "token", type: "address" }
-            ],
-            outputs: [{ name: "", type: "uint256" }],
-          },
-        ],
-        functionName: "calculateLenderReward",
-        args: userAddress ? [userAddress as `0x${string}`, tokenAddress as `0x${string}`] : undefined,
-        chainId: ARC_CHAIN_ID,
+        outputs: [{ name: "", type: "uint256" }],
       },
     ],
+    functionName: "getAvailableToWithdraw",
+    args: userAddress ? [userAddress as `0x${string}`, tokenAddress as `0x${string}`] : undefined,
+    chainId: ARC_CHAIN_ID,
     query: {
       enabled: !!userAddress && !!tokenAddress,
-      staleTime: 30000,
+      staleTime: 10000,
       refetchOnWindowFocus: true,
     },
   });
 
-  const lender = data?.[0]?.result;
-  const currentReward = data?.[1]?.result;
-
   const tokenInfo = getTokenInfo(tokenAddress);
-  
-  if (!lender || !currentReward || !tokenInfo) {
+
+  if (!balance || !tokenInfo) {
     return {
       deposited: "0",
       depositedUSD: "0.00",
@@ -341,18 +255,16 @@ export function useLenderInfo(tokenAddress: string) {
     };
   }
 
-  const deposited = formatUnits(lender.deposited, tokenInfo.decimals);
-  const reward = formatUnits(currentReward, tokenInfo.decimals);
-  const totalWithdraw = formatUnits(lender.deposited + currentReward, tokenInfo.decimals);
+  const totalWithdraw = formatUnits(balance, tokenInfo.decimals);
 
   // Sử dụng giá mặc định 1.0 cho USD, các token khác sẽ cần market data
   const tokenPrice = tokenInfo.symbol === 'USDC' ? 1.0 : 1.0;
 
   return {
-    deposited,
-    depositedUSD: (parseFloat(deposited) * tokenPrice).toFixed(2),
-    currentReward: reward,
-    currentRewardUSD: (parseFloat(reward) * tokenPrice).toFixed(2),
+    deposited: totalWithdraw, // In new model, we only track total available
+    depositedUSD: (parseFloat(totalWithdraw) * tokenPrice).toFixed(2),
+    currentReward: "0", // Interest is already included in balance
+    currentRewardUSD: "0.00",
     totalWithdraw,
     totalWithdrawUSD: (parseFloat(totalWithdraw) * tokenPrice).toFixed(2),
     isLoading: lenderLoading,
@@ -365,7 +277,7 @@ export function useWithdrawAll() {
   const { writeContract, data: hash, error, isPending } = useWriteContract();
   const { address } = useAccount();
   const { wallets } = useWallets();
-  
+
   // Dùng address từ wallets nếu useAccount không có
   const userAddress = address || wallets[0]?.address;
 
@@ -409,7 +321,7 @@ export function useWithdraw() {
   const { writeContract, data: hash, error, isPending } = useWriteContract();
   const { address } = useAccount();
   const { wallets } = useWallets();
-  
+
   // Dùng address từ wallets nếu useAccount không có
   const userAddress = address || wallets[0]?.address;
 
@@ -425,7 +337,7 @@ export function useWithdraw() {
 
     try {
       const amountWei = parseUnits(amount, tokenInfo.decimals);
-      
+
       await writeContract({
         address: getAddress("LoanManager"),
         abi: [

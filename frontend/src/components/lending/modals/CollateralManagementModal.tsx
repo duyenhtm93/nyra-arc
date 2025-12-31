@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import Image from "next/image";
 import { useWriteContract, useWaitForTransactionReceipt, useAccount } from "wagmi";
 import { useWallets } from "@privy-io/react-auth";
-import { parseUnits, formatUnits, encodeFunctionData } from "viem";
+import { parseUnits, encodeFunctionData } from "viem";
 import { getTokenInfo } from "@/utils/tokenInfo";
 import { useMarketData } from "@/hooks/useMarketData";
 import { useWalletBalances, useCollateralDetails } from "@/hooks/useCollateral";
-import { useInvalidateQueries } from "@/hooks/useInvalidateQueries";
 import { useToast } from "@/hooks/useToast";
 import { ARC_CHAIN_ID, getAddress } from "@/utils/addresses";
+import { useTokenPrice } from "@/hooks/useMarketData";
 
 interface CollateralManagementModalProps {
   isOpen: boolean;
@@ -26,88 +27,80 @@ interface CollateralManagementModalProps {
   onTransactionSuccess?: () => void;
 }
 
-export default function CollateralManagementModal({ 
-  isOpen, 
-  onClose, 
-  collateral, 
+export default function CollateralManagementModal({
+  isOpen,
+  onClose,
+  collateral,
   formatBalance,
-  onTransactionSuccess 
+  onTransactionSuccess
 }: CollateralManagementModalProps) {
   const [action, setAction] = useState<'deposit' | 'withdraw'>('deposit');
   const [amount, setAmount] = useState('');
   const [isApproving, setIsApproving] = useState(false);
   const [usingPrivyFlow, setUsingPrivyFlow] = useState(false);
-  
+
   const depositCalledRef = useRef(false);
   const currentLoadingToastRef = useRef<string | number | null>(null);
   const successToastShownRef = useRef(false);
   const toast = useToast();
 
-  const tokenInfo = getTokenInfo(collateral.tokenAddress);
+  const tokenInfo = useMemo(() => getTokenInfo(collateral.tokenAddress), [collateral.tokenAddress]);
   const marketData = useMarketData();
   const { address, isConnected } = useAccount();
   const { wallets } = useWallets();
-  
+
   // ✅ Fallback: nếu wagmi chưa sync thì lấy từ Privy
   const isWalletConnected = isConnected || wallets.length > 0;
   const walletAddress = address || wallets[0]?.address;
-  
-  const { invalidateAllUserData } = useInvalidateQueries();
+
   const { balances } = useWalletBalances(walletAddress);
   const collateralDetails = useCollateralDetails(walletAddress);
 
-  // Get token price from market data
-  const getTokenPrice = (tokenAddress: string) => {
-    const market = marketData.find(m => m.tokenAddress === tokenAddress);
-    return market?.price || 1.00;
-  };
+  const market = useMemo(() => marketData.find(m => m.tokenAddress === collateral.tokenAddress), [marketData, collateral.tokenAddress]);
+
+  // PRIORITIZE PRICE FROM ORACLE
+  const { price: oraclePrice } = useTokenPrice(collateral.tokenAddress);
+  const tokenPrice = useMemo(() => {
+    if (oraclePrice !== undefined && oraclePrice > 0) return oraclePrice;
+    if (market?.price && market.price > 0) return market.price;
+    return 1.00;
+  }, [oraclePrice, market?.price]);
 
   // Calculate projected health factor after deposit/withdraw
-  const calculateProjectedHealthFactor = () => {
+  const projectedHealthFactor = useMemo(() => {
     if (!amount || !collateralDetails.healthFactor) return null;
-    
-    // Lấy dữ liệu từ useCollateralDetails (đã có logic đúng)
+
+    // Lấy dữ liệu từ useCollateralDetails
     const collateralUSD = collateralDetails.totalCollateralValue || 0;
     const currentDebtUSD = collateralDetails.outstandingLoan || 0;
-    const currentHealthFactor = collateralDetails.healthFactor;
-    
-    // Tính toán dựa trên tỷ lệ thay đổi
-    // Nếu withdraw: newCollateral = currentCollateral * (1 - withdrawRatio)
-    // Nếu deposit: newCollateral = currentCollateral + depositAmount
-    
+
     let newCollateralUSD;
+    const transactionAmount = parseFloat(amount);
+    if (isNaN(transactionAmount)) return null;
+
+    const transactionAmountUSD = transactionAmount * tokenPrice;
+
     if (action === 'deposit') {
-      // Deposit: cộng thêm giá trị
-      const transactionAmount = parseFloat(amount);
-      const tokenPrice = getTokenPrice(collateral.tokenAddress);
-      const transactionAmountUSD = transactionAmount * tokenPrice;
       newCollateralUSD = collateralUSD + transactionAmountUSD;
     } else {
-      // Withdraw: tính theo tỷ lệ
-      const withdrawAmount = parseFloat(amount);
-      const tokenPrice = getTokenPrice(collateral.tokenAddress);
-      const withdrawAmountUSD = withdrawAmount * tokenPrice;
-      newCollateralUSD = Math.max(0, collateralUSD - withdrawAmountUSD);
+      newCollateralUSD = Math.max(0, collateralUSD - transactionAmountUSD);
     }
-    
+
     // Sử dụng cùng logic như useCollateralDetails
     const maxLTV = 0.75; // 75% LTV
-    const projectedHealthFactor = currentDebtUSD > 0 ? (newCollateralUSD * maxLTV) / currentDebtUSD : 999;
-    
-    // Không trả về 0 - trả về null thay vì 0 để không render ra "0"
-    if (projectedHealthFactor <= 0) return null;
-    
-    return projectedHealthFactor;
-  };
+    const projectedHF = currentDebtUSD > 0 ? (newCollateralUSD * maxLTV) / currentDebtUSD : 999;
+
+    return projectedHF <= 0 ? null : projectedHF;
+  }, [amount, collateralDetails, action, tokenPrice]);
 
   // Get wallet balance for this token
-  const getWalletBalance = () => {
+  const walletBalanceValue = useMemo(() => {
     const walletBalance = balances.find(b => b.tokenAddress === collateral.tokenAddress);
     return walletBalance?.balance || 0;
-  };
+  }, [balances, collateral.tokenAddress]);
 
   // Calculate max safe withdraw amount (keep HF >= 1.2)
-  const getMaxSafeWithdraw = () => {
+  const maxSafeWithdraw = useMemo(() => {
     const currentCollateralUSD = collateralDetails.totalCollateralValue || 0;
     const debtUSD = collateralDetails.outstandingLoan || 0;
     const currentHF = collateralDetails.healthFactor || 0;
@@ -118,10 +111,8 @@ export default function CollateralManagementModal({
     }
 
     // Tính weighted threshold từ current health factor
-    // currentHF = (currentCollateralUSD × threshold) / debtUSD
-    // threshold = (currentHF × debtUSD) / currentCollateralUSD
-    const weightedThreshold = currentCollateralUSD > 0 
-      ? (currentHF * debtUSD) / currentCollateralUSD 
+    const weightedThreshold = currentCollateralUSD > 0
+      ? (currentHF * debtUSD) / currentCollateralUSD
       : 0.75;
 
     // Tính collateral USD cần thiết để maintain HF >= 1.2
@@ -132,70 +123,37 @@ export default function CollateralManagementModal({
     const maxWithdrawUSD = Math.max(0, currentCollateralUSD - minCollateralUSD);
 
     // Convert sang token amount
-    const tokenPrice = getTokenPrice(collateral.tokenAddress);
     const maxWithdrawToken = tokenPrice > 0 ? maxWithdrawUSD / tokenPrice : 0;
 
     // Không được vượt quá collateral balance hiện tại
     return Math.min(maxWithdrawToken, collateral.amount);
-  };
-
-  const projectedHealthFactor = calculateProjectedHealthFactor();
-  const maxSafeWithdraw = getMaxSafeWithdraw();
+  }, [collateralDetails, collateral.amount, tokenPrice]);
 
   // Contract writes
   const { writeContract: writeCollateral, data: collateralHash } = useWriteContract();
   const { writeContract: writeToken, data: approveHash } = useWriteContract();
 
   // Transaction receipts
-  const { isLoading: isCollateralPending, isSuccess: isCollateralSuccess } = useWaitForTransactionReceipt({
+  const { isSuccess: isCollateralSuccess } = useWaitForTransactionReceipt({
     hash: collateralHash,
   });
 
-  const { isLoading: isApprovePending, isSuccess: isApproveSuccess } = useWaitForTransactionReceipt({
+  const { isSuccess: isApproveSuccess } = useWaitForTransactionReceipt({
     hash: approveHash,
   });
 
-  const isLoading = isCollateralPending || isApprovePending;
+  const handleClose = useCallback(() => {
+    setAmount('');
+    setAction('deposit');
+    setIsApproving(false);
+    setUsingPrivyFlow(false);
+    depositCalledRef.current = false;
+    onClose();
+  }, [onClose]);
 
-  // Auto-refresh data when transaction succeeds (wagmi flow only)
-  useEffect(() => {
-    if (isCollateralSuccess && walletAddress && !usingPrivyFlow && !successToastShownRef.current) {
-      // Dismiss loading toast before showing success
-      if (currentLoadingToastRef.current) {
-        toast.dismiss(currentLoadingToastRef.current);
-        currentLoadingToastRef.current = null;
-      }
-      
-      successToastShownRef.current = true;
-      toast.showTransactionSuccess(collateralHash!, "Deposit Collateral");
-      if (onTransactionSuccess) {
-        onTransactionSuccess();
-      }
-      setTimeout(() => {
-        handleClose();
-      }, 500);
-    }
-  }, [isCollateralSuccess, walletAddress, usingPrivyFlow, onTransactionSuccess, collateralHash]);
-
-  // Handle approve success (wagmi flow only)
-  useEffect(() => {
-    if (isApproveSuccess && isApproving && !usingPrivyFlow && !successToastShownRef.current) {
-      // Dismiss loading toast before showing success
-      if (currentLoadingToastRef.current) {
-        toast.dismiss(currentLoadingToastRef.current);
-        currentLoadingToastRef.current = null;
-      }
-      
-      successToastShownRef.current = true;
-      toast.showTransactionSuccess(approveHash!, "Approve Token");
-      setIsApproving(false);
-      handleDepositAfterApproval();
-    }
-  }, [isApproveSuccess, isApproving, usingPrivyFlow, approveHash]);
-
-  const handleDepositAfterApproval = async () => {
+  const handleDepositAfterApproval = useCallback(async () => {
     if (!amount || parseFloat(amount) <= 0) return;
-    
+
     if (depositCalledRef.current) {
       return;
     }
@@ -204,12 +162,12 @@ export default function CollateralManagementModal({
     currentLoadingToastRef.current = toast.showTransactionPending("Deposit Collateral");
     successToastShownRef.current = false; // Reset flag for new transaction
 
-    try{
+    try {
       const amountWei = parseUnits(amount, tokenInfo.decimals);
-      
+
       if (!isConnected && wallets.length > 0) {
         const privyWallet = wallets[0];
-        
+
         const depositData = encodeFunctionData({
           abi: [{
             name: "deposit",
@@ -239,42 +197,45 @@ export default function CollateralManagementModal({
         try {
           let attempts = 0;
           const maxAttempts = 30;
-          
+
           while (attempts < maxAttempts) {
             try {
               const receipt = await provider.request({
                 method: "eth_getTransactionReceipt",
                 params: [txHash]
               });
-              
+
               if (receipt && receipt.status) {
                 if (currentLoadingToastRef.current) {
                   toast.dismiss(currentLoadingToastRef.current);
                   currentLoadingToastRef.current = null;
                 }
-                successToastShownRef.current = true;
-                toast.showTransactionSuccess(txHash, "Deposit Collateral");
-                
+                if (!successToastShownRef.current) {
+                  successToastShownRef.current = true;
+                  toast.showTransactionSuccess(txHash, "Deposit Collateral");
+                }
+
                 if (onTransactionSuccess) {
                   onTransactionSuccess();
                 }
-                
+
                 setTimeout(() => {
                   handleClose();
                 }, 500);
                 break;
               }
-            } catch (e) {}
-            
+            } catch (e) { }
+
             await new Promise(resolve => setTimeout(resolve, 1000));
             attempts++;
           }
-          
+
           if (attempts >= maxAttempts) {
             if (currentLoadingToastRef.current) {
               toast.dismiss(currentLoadingToastRef.current);
               currentLoadingToastRef.current = null;
             }
+            toast.showTransactionError("Transaction confirmation timeout", "Deposit Collateral");
             depositCalledRef.current = false;
           }
         } catch (waitError) {
@@ -323,7 +284,40 @@ export default function CollateralManagementModal({
       );
       depositCalledRef.current = false;
     }
-  };
+  }, [amount, collateral.tokenAddress, tokenInfo.decimals, isConnected, wallets, walletAddress, toast, onTransactionSuccess, handleClose, writeCollateral]);
+
+  // Auto-refresh data when transaction succeeds
+  useEffect(() => {
+    if (isCollateralSuccess && walletAddress && !usingPrivyFlow && !successToastShownRef.current) {
+      if (currentLoadingToastRef.current) {
+        toast.dismiss(currentLoadingToastRef.current);
+        currentLoadingToastRef.current = null;
+      }
+
+      successToastShownRef.current = true;
+      toast.showTransactionSuccess(collateralHash!, "Deposit Collateral");
+      if (onTransactionSuccess) {
+        onTransactionSuccess();
+      }
+      setTimeout(() => {
+        handleClose();
+      }, 500);
+    }
+  }, [isCollateralSuccess, walletAddress, usingPrivyFlow, onTransactionSuccess, collateralHash, toast, handleClose]);
+
+  // Handle approve success
+  useEffect(() => {
+    if (isApproveSuccess && isApproving && !usingPrivyFlow && !successToastShownRef.current) {
+      if (currentLoadingToastRef.current) {
+        toast.dismiss(currentLoadingToastRef.current);
+        currentLoadingToastRef.current = null;
+      }
+
+      successToastShownRef.current = true;
+      setIsApproving(false);
+      handleDepositAfterApproval();
+    }
+  }, [isApproveSuccess, isApproving, usingPrivyFlow, approveHash, toast, handleDepositAfterApproval]);
 
   const handleDeposit = async () => {
     if (!amount || parseFloat(amount) <= 0) return;
@@ -331,17 +325,17 @@ export default function CollateralManagementModal({
     depositCalledRef.current = false;
     setIsApproving(true);
     currentLoadingToastRef.current = toast.showTransactionPending("Approve Token");
-    successToastShownRef.current = false; // Reset flag for new transaction
-    
+    successToastShownRef.current = false;
+
     try {
       const amountWei = parseUnits(amount, tokenInfo.decimals);
-      
+
       if (!isConnected && wallets.length > 0) {
         setUsingPrivyFlow(true);
         const privyWallet = wallets[0];
-        
+
         await privyWallet.switchChain(ARC_CHAIN_ID);
-        
+
         const approveData = encodeFunctionData({
           abi: [{
             name: "approve",
@@ -371,38 +365,39 @@ export default function CollateralManagementModal({
         try {
           let attempts = 0;
           const maxAttempts = 30;
-          
+
           while (attempts < maxAttempts) {
             try {
               const receipt = await provider.request({
                 method: "eth_getTransactionReceipt",
                 params: [txHash]
               });
-              
+
               if (receipt && receipt.status) {
                 if (currentLoadingToastRef.current) {
                   toast.dismiss(currentLoadingToastRef.current);
                   currentLoadingToastRef.current = null;
                 }
                 successToastShownRef.current = true;
-                toast.showTransactionSuccess(txHash, "Approve Token");
-                
+                // Success toast removed as per request
+
                 setIsApproving(false);
                 await new Promise(resolve => setTimeout(resolve, 100));
                 await handleDepositAfterApproval();
                 break;
               }
-            } catch (e) {}
-            
+            } catch (e) { }
+
             await new Promise(resolve => setTimeout(resolve, 1000));
             attempts++;
           }
-          
+
           if (attempts >= maxAttempts) {
             if (currentLoadingToastRef.current) {
               toast.dismiss(currentLoadingToastRef.current);
               currentLoadingToastRef.current = null;
             }
+            toast.showTransactionError("Transaction confirmation timeout", "Approve Assets");
             setIsApproving(false);
             await handleDepositAfterApproval();
           }
@@ -462,17 +457,17 @@ export default function CollateralManagementModal({
     if (!amount || parseFloat(amount) <= 0) return;
 
     currentLoadingToastRef.current = toast.showTransactionPending("Withdraw Collateral");
-    successToastShownRef.current = false; // Reset flag for new transaction
-    
+    successToastShownRef.current = false;
+
     try {
       const amountWei = parseUnits(amount, tokenInfo.decimals);
-      
+
       if (!isConnected && wallets.length > 0) {
         setUsingPrivyFlow(true);
         const privyWallet = wallets[0];
-        
+
         await privyWallet.switchChain(ARC_CHAIN_ID);
-        
+
         const withdrawData = encodeFunctionData({
           abi: [{
             name: "withdraw",
@@ -502,42 +497,45 @@ export default function CollateralManagementModal({
         try {
           let attempts = 0;
           const maxAttempts = 30;
-          
+
           while (attempts < maxAttempts) {
             try {
               const receipt = await provider.request({
                 method: "eth_getTransactionReceipt",
                 params: [txHash]
               });
-              
+
               if (receipt && receipt.status) {
                 if (currentLoadingToastRef.current) {
                   toast.dismiss(currentLoadingToastRef.current);
                   currentLoadingToastRef.current = null;
                 }
-                successToastShownRef.current = true;
-                toast.showTransactionSuccess(txHash, "Withdraw Collateral");
-                
+                if (!successToastShownRef.current) {
+                  successToastShownRef.current = true;
+                  toast.showTransactionSuccess(txHash, "Withdraw Collateral");
+                }
+
                 if (onTransactionSuccess) {
                   onTransactionSuccess();
                 }
-                
+
                 setTimeout(() => {
                   handleClose();
                 }, 500);
                 break;
               }
-            } catch (e) {}
-            
+            } catch (e) { }
+
             await new Promise(resolve => setTimeout(resolve, 1000));
             attempts++;
           }
-          
+
           if (attempts >= maxAttempts) {
             if (currentLoadingToastRef.current) {
               toast.dismiss(currentLoadingToastRef.current);
               currentLoadingToastRef.current = null;
             }
+            toast.showTransactionError("Transaction confirmation timeout", "Withdraw Collateral");
             setUsingPrivyFlow(false);
           }
         } catch (waitError) {
@@ -596,188 +594,145 @@ export default function CollateralManagementModal({
     }
   };
 
-  const handleClose = () => {
-    setAmount('');
-    setAction('deposit');
-    setIsApproving(false);
-    setUsingPrivyFlow(false);
-    depositCalledRef.current = false;
-    onClose();
-  };
-
   if (!isOpen) {
     return null;
   }
 
   return (
-    <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50">
-      <div 
-        className="rounded-lg p-6 w-[25.9rem] max-w-[25.9rem] mx-4 border border-gray-600"
-        style={{backgroundColor: 'var(--background)'}}
+    <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div
+        className="rounded-lg p-6 w-full max-w-[26rem] shadow-2xl border border-gray-700 bg-[#111827]"
       >
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-between items-center mb-6">
           <h3 className="text-lg font-semibold text-white">
-            Manage {collateral.symbol} Collateral
+            Manage {collateral.symbol}
           </h3>
           <button
             onClick={handleClose}
-            className="text-gray-400 hover:text-white text-xl font-bold"
+            className="text-gray-400 hover:text-white transition-colors"
           >
-            ✕
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
         {/* Action Toggle */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-6 p-1 bg-gray-900/50 rounded-lg border border-gray-700/30">
           <button
             onClick={() => setAction('deposit')}
-            className={`flex-1 py-2 px-4 rounded-lg text-base font-medium transition-colors border border-gray-600 ${
-              action === 'deposit'
-                ? 'text-white'
-                : 'text-gray-300 hover:text-white'
-            }`}
-            style={action === 'deposit' ? {backgroundColor: 'var(--button-active)'} : {}}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-bold transition-all ${action === 'deposit'
+              ? 'text-white shadow-lg bg-[#F87813]'
+              : 'text-gray-400 hover:text-white'
+              }`}
           >
             Deposit
           </button>
           <button
             onClick={() => setAction('withdraw')}
-            className={`flex-1 py-2 px-4 rounded-lg text-base font-medium transition-colors border border-gray-600 ${
-              action === 'withdraw'
-                ? 'text-white'
-                : 'text-gray-300 hover:text-white'
-            }`}
-            style={action === 'withdraw' ? {backgroundColor: 'var(--button-danger)'} : {}}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-bold transition-all ${action === 'withdraw'
+              ? 'text-white shadow-lg bg-[#F87813]'
+              : 'text-gray-400 hover:text-white'
+              }`}
           >
             Withdraw
           </button>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Amount Input */}
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <label className="text-sm" style={{color: 'var(--text-secondary)'}}>Amount</label>
+            <div className="flex justify-between items-center mb-2">
+              <label className="text-sm font-medium text-gray-400">Amount</label>
+              <span className="text-xs text-gray-500">
+                {action === 'deposit' ? 'Wallet' : 'Collateral'}: {formatBalance(action === 'deposit' ? walletBalanceValue : collateral.amount)}
+              </span>
             </div>
-            
-            <div className="p-3 rounded-lg border border-gray-600" style={{backgroundColor: 'var(--background-secondary)'}}>
-              <div className="flex items-center gap-3">
+
+            <div className="p-4 rounded-lg border border-gray-700 bg-gray-800/50">
+              <div className="flex items-center gap-4">
                 <div className="flex-1">
                   <input
                     type="number"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="0.00"
-                    className="w-full text-2xl font-semibold text-white bg-transparent border-none outline-none placeholder-gray-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-full text-2xl font-bold text-white bg-transparent border-none outline-none placeholder-gray-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 </div>
-                
-                <div className="flex items-center gap-2">
-                  <img 
-                    src={collateral.icon} 
-                    alt={collateral.symbol}
-                    className="w-8 h-8"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                    }}
-                  />
-                  <span className="font-semibold text-gray-300">{collateral.symbol}</span>
+
+                <div className="flex items-center gap-2 px-2 py-1 bg-gray-700/50 rounded-md border border-gray-600/50">
+                  <div className="relative w-5 h-5">
+                    <Image
+                      src={collateral.icon}
+                      alt={collateral.symbol}
+                      fill
+                      className="object-contain"
+                    />
+                  </div>
+                  <span className="text-sm font-semibold text-white">{collateral.symbol}</span>
                 </div>
               </div>
-              
-              <div className="flex items-center justify-between mt-3">
-                <div className="text-xs text-gray-400">
-                  ${(parseFloat(amount || "0") * getTokenPrice(collateral.tokenAddress)).toFixed(2)}
+
+              <div className="flex items-center justify-between mt-4">
+                <div className="text-xs font-medium text-gray-500">
+                  ${(parseFloat(amount || "0") * tokenPrice).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400">
-                    {action === 'deposit' ? 'Wallet' : 'Collateral'} balance: {formatBalance(action === 'deposit' ? getWalletBalance() : collateral.amount)}
-                  </span>
-                  <button
-                    onClick={() => setAmount((action === 'deposit' ? getWalletBalance() : getMaxSafeWithdraw()).toString())}
-                    className="text-xs font-semibold text-gray-300 hover:text-white"
-                  >
-                    MAX
-                  </button>
-                </div>
+                <button
+                  onClick={() => setAmount((action === 'deposit' ? walletBalanceValue : maxSafeWithdraw).toString())}
+                  className="text-xs font-bold text-gray-300 hover:text-white transition-colors uppercase tracking-widest bg-gray-700/50 px-2 py-1 rounded"
+                >
+                  MAX
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Risk Information */}
-          <h4 className="text-sm mb-1" style={{color: 'var(--text-secondary)'}}>Risk Information</h4>
-          <div className="p-3 rounded-lg text-base border border-gray-600" style={{backgroundColor: 'var(--background-secondary)'}}>
-            <div className="flex justify-between mb-1">
-              <span className="text-gray-300">Deposited:</span>
-              <span className="text-white">{collateral.amount.toFixed(2)} {collateral.symbol}</span>
+          {/* Info Section */}
+          <div className="p-4 rounded-lg border border-gray-700/50 bg-gray-800/30 space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-400">Current Deposited</span>
+              <span className="text-sm font-medium text-white">{collateral.amount.toFixed(2)} {collateral.symbol}</span>
             </div>
-            <div className="flex justify-between mb-1">
-              <span className="text-gray-300">Current Health factor:</span>
-              <span className="text-white">
-                {collateralDetails.isLoading ? "..." : 
-                 calculateProjectedHealthFactor() ? 
-                 `${collateralDetails.healthFactor.toFixed(2)} > ` :
-                 collateralDetails.healthFactor.toFixed(2)}
-                {calculateProjectedHealthFactor() && (
-                  <span className={`${(calculateProjectedHealthFactor() ?? 0) >= 1.5 ? 'text-green-400' : (calculateProjectedHealthFactor() ?? 0) >= 1.1 ? 'text-orange-400' : 'text-red-400'}`}>
-                    {calculateProjectedHealthFactor()?.toFixed(2)}
-                  </span>
-                )}
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-400">New Health Factor</span>
+              <span className="text-sm font-medium">
+                {collateralDetails.isLoading ? "..." :
+                  projectedHealthFactor ?
+                    <div className="flex items-center gap-2">
+                      <span className={`${projectedHealthFactor >= 1.5 ? 'text-green-400' : projectedHealthFactor >= 1.1 ? 'text-orange-400' : 'text-red-400'}`}>
+                        {projectedHealthFactor === 999 ? "∞" : projectedHealthFactor.toFixed(2)}
+                      </span>
+                    </div> :
+                    <span className="text-white">{collateralDetails.healthFactor === 999 ? "∞" : collateralDetails.healthFactor.toFixed(2)}</span>}
               </span>
             </div>
-            <div className="text-right text-xs">
-              <span className="text-gray-300">Liquidation at: </span>
-              <span className="text-white">&lt;1.0</span>
+            <div className="pt-2 border-t border-gray-700/50 flex justify-between items-center">
+              <span className="text-xs text-gray-400 italic">Liquidation threshold</span>
+              <span className="text-xs font-medium text-gray-500">HF &lt; 1.0</span>
             </div>
           </div>
 
-          {/* Warning if withdraw too high */}
-          {action === 'withdraw' && projectedHealthFactor && projectedHealthFactor < 1.0 && (
-            <div className="bg-red-900 border border-red-600 rounded-lg p-3">
-              <div className="text-red-300 text-sm font-semibold">⚠️ Liquidation Risk!</div>
-              <div className="text-red-200 text-xs mt-1">
-                Withdrawing this amount will drop your Health Factor below 1.0, making you eligible for liquidation.
-              </div>
-            </div>
-          )}
-
-          {/* Buttons */}
+          {/* Action Button */}
           <button
             onClick={handleSubmit}
             disabled={
-              !amount || 
-              parseFloat(amount) <= 0 || 
-              isLoading ||
-              Boolean(action === 'withdraw' && projectedHealthFactor && projectedHealthFactor < 1.0) ||
-              Boolean(action === 'withdraw' && parseFloat(amount || "0") > collateral.amount) ||
-              Boolean(action === 'deposit' && parseFloat(amount || "0") > getWalletBalance())
+              !amount ||
+              parseFloat(amount) <= 0 ||
+              (action === 'withdraw' && projectedHealthFactor !== null && projectedHealthFactor < 1.0) ||
+              (action === 'withdraw' && parseFloat(amount || "0") > collateral.amount) ||
+              (action === 'deposit' && parseFloat(amount || "0") > walletBalanceValue)
             }
-            className="w-full px-4 py-2 rounded-lg transition-colors border border-gray-600 mt-8 disabled:opacity-50 disabled:cursor-not-allowed text-white"
+            className="w-full px-4 py-3 rounded-lg font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed text-white hover:opacity-90 active:scale-[0.98] mt-4 shadow-lg shadow-orange-500/10"
             style={{
-              backgroundColor: action === 'deposit' ? 'var(--button-active)' : 'var(--button-danger)'
-            }}
-            onMouseEnter={(e) => {
-              if (!e.currentTarget.disabled) {
-                e.currentTarget.style.backgroundColor = action === 'deposit' ? 'var(--button-hover)' : 'var(--button-danger-hover)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!e.currentTarget.disabled) {
-                e.currentTarget.style.backgroundColor = action === 'deposit' ? 'var(--button-active)' : 'var(--button-danger)';
-              }
+              backgroundColor: 'var(--button-active)'
             }}
           >
-            {isLoading ? (
-              <span className="flex items-center justify-center">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                {isApproving ? 'Approving...' : 'Processing...'}
-              </span>
-            ) : (
-              `${action === 'deposit' ? 'Deposit' : 'Withdraw'} ${collateral.symbol}`
-            )}
+            {`${action === 'deposit' ? 'Deposit' : 'Withdraw'} ${collateral.symbol}`}
           </button>
         </div>
       </div>
     </div>
   );
 }
+

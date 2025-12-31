@@ -1,8 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --background: #1B2030;
-  --background-secondary: #292E41;
+  --background: #0B0E14;
+  /* Darker background */
+  --background-secondary: #1B2030;
+  --background-tertiary: #292E41;
   --border: #383C4F;
   --button-active: #F87813;
   --button-hover: #C2410C;
@@ -10,10 +12,19 @@
   --button-danger-hover: #C2410C;
   --text-primary: #FFFFFF;
   --text-secondary: #A5A8B6;
-  
+
+  /* Glassmorphism */
+  --glass-bg: rgba(27, 32, 48, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-blur: blur(12px);
+
+  /* Gradients */
+  --grad-primary: linear-gradient(135deg, #F87813 0%, #C2410C 100%);
+  --grad-surface: linear-gradient(180deg, rgba(41, 46, 65, 0.5) 0%, rgba(27, 32, 48, 0.8) 100%);
+
   /* Font families */
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-headline: 'Poppins', 'Inter', sans-serif; /* Fallback cho FT Regola Neue */
+  --font-headline: 'Poppins', 'Inter', sans-serif;
   --font-mono: 'Roboto Mono', 'Courier New', monospace;
 }
 
@@ -23,18 +34,20 @@ body {
   font-family: var(--font-body);
 }
 
+/* Premium UI classes */
+.premium-card {
+  background: var(--grad-surface);
+  border: 1px solid var(--border);
+  backdrop-filter: var(--glass-blur);
+}
+
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+}
+
 /* Button hover styles */
-button[style*="--button-active"]:hover {
-  background-color: var(--button-hover) !important;
-}
-
-/* Tab button hover styles */
-.tab-button:not(:disabled):hover {
-  background-color: var(--background-secondary) !important;
-  opacity: 0.8;
-}
-
-/* Chain selector button hover */
-button[style*="--background-secondary"]:hover {
-  opacity: 0.8;
+button:not(:disabled):active {
+  transform: scale(0.97);
 }

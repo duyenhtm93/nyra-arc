@@ -1,35 +1,38 @@
 "use client";
 
+import { useMemo } from "react";
+import Image from "next/image";
 import { useMarketData } from "@/hooks/useMarketData";
 import { getTokenName } from "@/utils/tokenInfo";
 
 export default function MarketOverview() {
   const marketData = useMarketData();
 
-  const prioritizedAssets = ["USDC", "EURC"] as const;
+  const prioritizedAssets = useMemo(() => ["USDC", "EURC"] as const, []);
 
-  const sortedMarkets = marketData
-    .map((market, originalIndex) => ({ market, originalIndex }))
-    .sort((a, b) => {
-      const priorityA = prioritizedAssets.indexOf(a.market.asset as typeof prioritizedAssets[number]);
-      const priorityB = prioritizedAssets.indexOf(b.market.asset as typeof prioritizedAssets[number]);
+  const sortedMarkets = useMemo(() => {
+    return [...marketData]
+      .sort((a, b) => {
+        const priorityA = prioritizedAssets.indexOf(a.asset as typeof prioritizedAssets[number]);
+        const priorityB = prioritizedAssets.indexOf(b.asset as typeof prioritizedAssets[number]);
 
-      const isAPrioritized = priorityA !== -1;
-      const isBPrioritized = priorityB !== -1;
+        const isAPrioritized = priorityA !== -1;
+        const isBPrioritized = priorityB !== -1;
 
-      if (isAPrioritized && isBPrioritized) {
-        return priorityA - priorityB;
-      }
+        if (isAPrioritized && isBPrioritized) {
+          return priorityA - priorityB;
+        }
 
-      if (isAPrioritized) return -1;
-      if (isBPrioritized) return 1;
+        if (isAPrioritized) return -1;
+        if (isBPrioritized) return 1;
 
-      return a.originalIndex - b.originalIndex;
-    })
-    .map(({ market }) => market);
+        // Fallback to original order if possible or stable sort
+        return 0;
+      });
+  }, [marketData, prioritizedAssets]);
 
   // Calculate market metrics
-  const calculateMarketMetrics = () => {
+  const metrics = useMemo(() => {
     let totalMarketSize = 0;
     let totalAvailable = 0;
     let totalBorrows = 0;
@@ -38,7 +41,7 @@ export default function MarketOverview() {
       if (!market.isLoading && !market.error) {
         const suppliedUSD = market.totalSupplied * market.price;
         const borrowedUSD = market.totalBorrowed * market.price;
-        
+
         totalMarketSize += suppliedUSD;
         totalBorrows += borrowedUSD;
         totalAvailable += (market.totalSupplied - market.totalBorrowed) * market.price;
@@ -50,145 +53,143 @@ export default function MarketOverview() {
       totalAvailable,
       totalBorrows
     };
-  };
-
-  const metrics = calculateMarketMetrics();
+  }, [marketData]);
 
   const formatUSD = (amount: number) => {
     return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
+  const isDataLoading = marketData.some(data => data.isLoading);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-in fade-in duration-500">
       {/* Market Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Total Market Size */}
-        <div className="rounded-lg p-6 border border-gray-600" style={{backgroundColor: 'var(--background-secondary)'}}>
-          <div className="text-2xl font-bold mb-1 text-center" style={{color: 'var(--text-primary)'}}>
-            {marketData.some(data => data.isLoading) ? "..." : formatUSD(metrics.totalMarketSize)}
+        <div className="premium-card rounded-lg p-6 shadow-xl">
+          <div className="text-3xl font-semibold mb-1 tracking-tight" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-headline)' }}>
+            {formatUSD(metrics.totalMarketSize)}
           </div>
-          <div className="text-sm text-center" style={{color: 'var(--text-secondary)'}}>Total Market Size</div>
+          <div className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Total Market Size</div>
         </div>
 
         {/* Total Available */}
-        <div className="rounded-lg p-6 border border-gray-600" style={{backgroundColor: 'var(--background-secondary)'}}>
-          <div className="text-2xl font-bold mb-1 text-center" style={{color: 'var(--text-primary)'}}>
-            {marketData.some(data => data.isLoading) ? "..." : formatUSD(metrics.totalAvailable)}
+        <div className="premium-card rounded-lg p-6 shadow-xl">
+          <div className="text-3xl font-semibold mb-1 tracking-tight" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-headline)' }}>
+            {formatUSD(metrics.totalAvailable)}
           </div>
-          <div className="text-sm text-center" style={{color: 'var(--text-secondary)'}}>Total Available</div>
+          <div className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Total Available</div>
         </div>
 
         {/* Total Borrows */}
-        <div className="rounded-lg p-6 border border-gray-600" style={{backgroundColor: 'var(--background-secondary)'}}>
-          <div className="text-2xl font-bold mb-1 text-center" style={{color: 'var(--text-primary)'}}>
-            {marketData.some(data => data.isLoading) ? "..." : formatUSD(metrics.totalBorrows)}
+        <div className="premium-card rounded-lg p-6 shadow-xl">
+          <div className="text-3xl font-semibold mb-1 tracking-tight" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-headline)' }}>
+            {formatUSD(metrics.totalBorrows)}
           </div>
-          <div className="text-sm text-center" style={{color: 'var(--text-secondary)'}}>Total Borrows</div>
+          <div className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Total Borrows</div>
         </div>
       </div>
-      <div className="rounded-lg overflow-hidden border border-gray-600" style={{backgroundColor: 'var(--background-secondary)'}}>
-        <div className="px-6 py-4 border-b border-gray-700">
+
+      <div className="premium-card rounded-lg overflow-hidden shadow-2xl">
+        <div className="px-6 py-5 border-b border-gray-700/50 bg-gray-800/20">
           <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-bold text-white">All Markets</h2>
-            <div className="text-sm text-gray-400">
-              {marketData.some(data => data.isLoading) && "Loading..."}
-              {marketData.some(data => data.error) && "Error loading data"}
+            <h2 className="text-xl font-semibold text-white" style={{ fontFamily: 'var(--font-headline)' }}>All Markets</h2>
+            <div className="text-sm">
+              {marketData.some(data => data.error) ? (
+                <span className="text-red-400">Error fetching data</span>
+              ) : (
+                <span className="text-green-400">● Live</span>
+              )}
             </div>
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-700">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-normal tracking-wider" style={{color: 'var(--text-secondary)'}}>
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-white/5 border-b border-gray-700/50">
+                <th className="px-6 py-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
                   Asset
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-normal tracking-wider" style={{color: 'var(--text-secondary)'}}>
+                <th className="px-6 py-2 text-xs font-semibold uppercase tracking-wider text-gray-400 text-right">
                   Price
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-normal tracking-wider" style={{color: 'var(--text-secondary)'}}>
+                <th className="px-6 py-2 text-xs font-semibold uppercase tracking-wider text-gray-400 text-right">
                   Total Supplied
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-normal tracking-wider" style={{color: 'var(--text-secondary)'}}>
+                <th className="px-6 py-2 text-xs font-semibold uppercase tracking-wider text-gray-400 text-right">
                   Supply APY
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-normal tracking-wider" style={{color: 'var(--text-secondary)'}}>
+                <th className="px-6 py-2 text-xs font-semibold uppercase tracking-wider text-gray-400 text-right">
                   Total Borrowed
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-normal tracking-wider" style={{color: 'var(--text-secondary)'}}>
+                <th className="px-6 py-2 text-xs font-semibold uppercase tracking-wider text-gray-400 text-right">
                   Borrow APY
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-normal tracking-wider" style={{color: 'var(--text-secondary)'}}>
+                <th className="px-6 py-2 text-xs font-semibold uppercase tracking-wider text-gray-400 text-right">
                   Utilization
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-600" style={{backgroundColor: 'var(--background-secondary)'}}>
+            <tbody className="divide-y divide-gray-700/30">
               {sortedMarkets.map((market, index) => (
-                <tr key={market.tokenAddress ?? index} className="hover:bg-gray-750">
+                <tr key={market.tokenAddress ?? index}>
                   <td className="px-6 py-3 whitespace-nowrap">
                     <div className="flex items-center">
-                      <img 
-                        src={market.icon} 
-                        alt={market.asset}
-                        className="w-8 h-8 mr-3 rounded-full"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                        }}
-                      />
+                      <div className="relative w-8 h-8 mr-3">
+                        <Image
+                          src={market.icon}
+                          alt={market.asset}
+                          fill
+                          className="rounded-full object-contain"
+                        />
+                      </div>
                       <div>
                         <div className="text-base font-medium text-white">{market.asset}</div>
-                        <div className="text-xs" style={{color: 'var(--text-secondary)'}}>
+                        <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                           {getTokenName(market.tokenAddress)}
                         </div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-3 whitespace-nowrap text-right text-base" style={{color: 'var(--text-primary)'}}>
-                    ${market.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <td className="px-6 py-3 whitespace-nowrap text-right text-base" style={{ color: 'var(--text-primary)' }}>
+                    {market.price !== undefined ? `$${market.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "..."}
                   </td>
-                  <td className="px-6 py-3 whitespace-nowrap text-right text-base" style={{color: 'var(--text-primary)'}}>
+                  <td className="px-6 py-3 whitespace-nowrap text-right text-base" style={{ color: 'var(--text-primary)' }}>
                     {market.error ? (
                       <span className="text-red-400 text-xs">Error</span>
-                    ) : market.isLoading ? (
-                      "..."
                     ) : (
                       <div>
                         <div>{`${market.totalSupplied.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${market.asset}`}</div>
-                        <div className="text-xs" style={{color: 'var(--text-secondary)'}}>
+                        <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                           ${(market.totalSupplied * market.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-3 whitespace-nowrap text-right text-base" style={{color: 'var(--text-primary)'}}>
+                  <td className="px-6 py-3 whitespace-nowrap text-right text-base" style={{ color: 'var(--text-primary)' }}>
                     {market.error ? (
                       <span className="text-red-400 text-xs">Error</span>
-                    ) : market.isLoading ? (
-                      "..."
                     ) : (
                       `${market.lendRate.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`
                     )}
                   </td>
-                  <td className="px-6 py-3 whitespace-nowrap text-right text-base" style={{color: 'var(--text-primary)'}}>
+                  <td className="px-6 py-3 whitespace-nowrap text-right text-base" style={{ color: 'var(--text-primary)' }}>
                     {market.error ? (
                       <span className="text-red-400 text-xs">Error</span>
-                    ) : market.isLoading ? (
-                      "..."
                     ) : (
                       <div>
                         <div>{`${market.totalBorrowed.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${market.asset}`}</div>
-                        <div className="text-xs" style={{color: 'var(--text-secondary)'}}>
+                        <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                           ${(market.totalBorrowed * market.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-3 whitespace-nowrap text-right text-base" style={{color: 'var(--text-primary)'}}>
-                    {market.isLoading ? "..." : `${market.borrowRate.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`}
+                  <td className="px-6 py-3 whitespace-nowrap text-right text-base" style={{ color: 'var(--text-primary)' }}>
+                    {`${market.borrowRate.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`}
                   </td>
-                  <td className="px-6 py-3 whitespace-nowrap text-right text-base" style={{color: 'var(--text-primary)'}}>
-                    {market.isLoading ? "..." : `${market.utilization.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`}
+                  <td className="px-6 py-3 whitespace-nowrap text-right text-base" style={{ color: 'var(--text-primary)' }}>
+                    {`${market.utilization.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`}
                   </td>
                 </tr>
               ))}
@@ -199,3 +200,4 @@ export default function MarketOverview() {
     </div>
   );
 }
+

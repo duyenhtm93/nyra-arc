@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback, memo } from "react";
 import { useHealthFactor, useLiquidation, useCollateralDetails } from "@/hooks/useCollateral";
 import { useAllBorrowers } from "@/hooks/useUserBorrow";
 import { useWallets } from "@privy-io/react-auth";
@@ -13,63 +13,63 @@ import { ARC_CHAIN_ID, getAddress } from "@/utils/addresses";
 
 type AddressKey = keyof typeof Addresses;
 
-const REPAY_TOKEN_KEYS: AddressKey[] = ["USDC", "EURC", "BTC", "ETH", "BNB", "NYRA"];
+const REPAY_TOKEN_KEYS: AddressKey[] = ["USDC", "EURC", "BTC", "ETH", "BNB"];
 const COLLATERAL_TOKEN_KEYS: AddressKey[] = ["BTC", "ETH", "BNB"];
 
 // Component để filter và hiển thị chỉ accounts có HF < 1.2
-function FilteredAccountHealthRow({ 
-  address, 
-  isCurrentUser, 
-  onRemove, 
-  onLiquidate 
-}: { 
+const FilteredAccountHealthRow = memo(({
+  address,
+  isCurrentUser,
+  onRemove,
+  onLiquidate
+}: {
   address: string;
   isCurrentUser: boolean;
   onRemove: () => void;
   onLiquidate: (borrower: string) => void;
-}) {
+}) => {
   const { healthFactor } = useCollateralDetails(address);
-  
+
   // Chỉ render nếu HF < 1.2 và > 0 và < 999
   if (healthFactor >= 1.2 || healthFactor <= 0 || healthFactor >= 999) {
     return null;
   }
 
   return (
-    <AccountHealthRow 
+    <AccountHealthRow
       address={address}
       isCurrentUser={isCurrentUser}
       onRemove={onRemove}
       onLiquidate={onLiquidate}
     />
   );
-}
+});
+
+FilteredAccountHealthRow.displayName = "FilteredAccountHealthRow";
 
 // Component để hiển thị Health Factor của một account
-function AccountHealthRow({ 
-  address, 
-  isCurrentUser, 
-  onRemove, 
-  onLiquidate 
-}: { 
+const AccountHealthRow = memo(({
+  address,
+  isCurrentUser,
+  onRemove,
+  onLiquidate
+}: {
   address: string;
   isCurrentUser: boolean;
   onRemove: () => void;
   onLiquidate: (borrower: string) => void;
-}) {
+}) => {
   const { healthFactor, isLoading } = useCollateralDetails(address);
 
   // Determine status based on health factor
-  const getStatus = () => {
+  const status = useMemo(() => {
     if (healthFactor === 0 || healthFactor >= 999) return 'safe';
     if (healthFactor < 1) return 'liquidatable';
     if (healthFactor < 1.2) return 'warning';
     return 'safe';
-  };
+  }, [healthFactor]);
 
-  const status = getStatus();
-
-  const getStatusDisplay = () => {
+  const statusDisplay = useMemo(() => {
     if (status === 'safe') {
       return { color: 'text-green-400', icon: '🟢', label: 'Safe' };
     } else if (status === 'warning') {
@@ -77,19 +77,17 @@ function AccountHealthRow({
     } else {
       return { color: 'text-red-400', icon: '🔴', label: 'Liquidatable' };
     }
-  };
+  }, [status]);
 
-  const statusDisplay = getStatusDisplay();
-  const shortAddress = `${address.slice(0, 6)}...${address.slice(-4)}`;
+  const shortAddress = useMemo(() => `${address.slice(0, 6)}...${address.slice(-4)}`, [address]);
 
   return (
-    <div className={`bg-gray-700/50 p-2 rounded border ${
-      status === 'liquidatable' 
-        ? 'border-red-500/50' 
-        : status === 'warning'
-          ? 'border-orange-500/50'
-          : 'border-gray-600'
-    }`}>
+    <div className={`bg-gray-700/50 p-2 rounded border ${status === 'liquidatable'
+      ? 'border-red-500/50'
+      : status === 'warning'
+        ? 'border-orange-500/50'
+        : 'border-gray-600'
+      }`}>
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
@@ -120,7 +118,7 @@ function AccountHealthRow({
             </div>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-2">
           {status === 'liquidatable' && (
             <button
@@ -142,7 +140,9 @@ function AccountHealthRow({
       </div>
     </div>
   );
-}
+});
+
+AccountHealthRow.displayName = "AccountHealthRow";
 
 export default function LiquidationAlert() {
   const { address } = useAccount();
@@ -153,10 +153,10 @@ export default function LiquidationAlert() {
   const { borrowers: contractBorrowers, isLoading: borrowersLoading, refetch: refetchBorrowers } = useAllBorrowers();
   const [manualAddresses, setManualAddresses] = useState<string[]>([]);
   const [newAddress, setNewAddress] = useState("");
-  
+
   // Combine contract borrowers + manual addresses
-  const monitoredAddresses = [...new Set([...contractBorrowers, ...manualAddresses])];
-  
+  const monitoredAddresses = useMemo(() => [...new Set([...contractBorrowers, ...manualAddresses])], [contractBorrowers, manualAddresses]);
+
   const { liquidate, isPending: isLiquidating, hash: liquidationHash } = useLiquidation();
   const { writeContractAsync: approveToken } = useWriteContract();
   const toast = useToast();
@@ -173,7 +173,7 @@ export default function LiquidationAlert() {
     if (userAddress && !contractBorrowers.includes(userAddress as `0x${string}`) && !manualAddresses.includes(userAddress)) {
       setManualAddresses([userAddress]);
     }
-  }, [userAddress, contractBorrowers]);
+  }, [userAddress, contractBorrowers, manualAddresses]);
 
   // Wait for liquidation transaction
   const { isLoading: isLiquidationConfirming, isSuccess: isLiquidationSuccess } = useWaitForTransactionReceipt({
@@ -187,35 +187,35 @@ export default function LiquidationAlert() {
       setBorrowerAddress("");
       setRepayAmount("");
     }
-  }, [isLiquidationSuccess]);
+  }, [isLiquidationSuccess, showLiquidateModal]);
 
-  const handleAddAddress = () => {
+  const handleAddAddress = useCallback(() => {
     if (!newAddress) return;
     if (monitoredAddresses.includes(newAddress)) {
-      alert("Address already monitored");
+      toast.showWarning("Address already monitored");
       return;
     }
-    setManualAddresses([...manualAddresses, newAddress]);
+    setManualAddresses(prev => [...prev, newAddress]);
     setNewAddress("");
-  };
+  }, [newAddress, monitoredAddresses, toast]);
 
-  const handleRemoveAddress = (addressToRemove: string) => {
+  const handleRemoveAddress = useCallback((addressToRemove: string) => {
     // Chỉ cho phép remove manual addresses, không remove contract borrowers
     if (contractBorrowers.includes(addressToRemove as `0x${string}`)) {
-      alert("Cannot remove contract borrowers. They are automatically tracked.");
+      toast.showWarning("Cannot remove contract borrowers. They are automatically tracked.");
       return;
     }
-    setManualAddresses(manualAddresses.filter(addr => addr !== addressToRemove));
-  };
+    setManualAddresses(prev => prev.filter(addr => addr !== addressToRemove));
+  }, [contractBorrowers, toast]);
 
-  const handleLiquidate = async () => {
+  const handleLiquidate = useCallback(async () => {
     if (!borrowerAddress || !repayAmount) {
       toast.showError("Please fill in all fields");
       return;
     }
 
     const loadingToast = toast.showTransactionPending("Liquidation");
-    
+
     try {
       // Step 1: Approve repay token
       setIsApproving(true);
@@ -260,11 +260,16 @@ export default function LiquidationAlert() {
       toast.showTransactionError(errorMessage, "Liquidation");
       setIsApproving(false);
     }
-  };
+  }, [borrowerAddress, repayAmount, repayToken, collateralToken, approveToken, liquidate, liquidationHash, toast]);
+
+  const handleOnLiquidate = useCallback((borrower: string) => {
+    setBorrowerAddress(borrower);
+    setShowLiquidateModal(true);
+  }, []);
 
   return (
     <>
-      <div className="rounded-lg border border-gray-600 p-6" style={{backgroundColor: 'var(--background-secondary)'}}>
+      <div className="rounded-lg border border-gray-600 p-6" style={{ backgroundColor: 'var(--background-secondary)' }}>
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-lg font-semibold text-white">🔍 Liquidation Monitor</h3>
@@ -279,14 +284,13 @@ export default function LiquidationAlert() {
             </button>
             <button
               onClick={() => setShowLiquidateModal(true)}
-              className="px-3 py-1 text-sm bg-red-500 hover:bg-red-600 text-white rounded transition-colors"
+              className="px-3 py-1 text-sm bg-red-500 hover:bg-red-600 text-white rounded transition-colors font-semibold"
             >
               💥 Liquidate
             </button>
           </div>
         </div>
 
-        {/* Add Address Input */}
         <div className="mb-4">
           <div className="flex gap-2">
             <input
@@ -299,14 +303,13 @@ export default function LiquidationAlert() {
             <button
               onClick={handleAddAddress}
               disabled={!newAddress}
-              className="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded transition-colors text-sm"
+              className="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded transition-colors text-sm font-semibold"
             >
               + Add
             </button>
           </div>
         </div>
 
-        {/* Monitored Accounts List */}
         <div className="space-y-2">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-sm font-semibold text-gray-300">Monitored Accounts:</h4>
@@ -327,15 +330,12 @@ export default function LiquidationAlert() {
           ) : (
             <div className="space-y-2">
               {monitoredAddresses.map((addr) => (
-                <FilteredAccountHealthRow 
+                <FilteredAccountHealthRow
                   key={addr}
                   address={addr}
                   isCurrentUser={addr === userAddress}
                   onRemove={() => handleRemoveAddress(addr)}
-                  onLiquidate={(borrower) => {
-                    setBorrowerAddress(borrower);
-                    setShowLiquidateModal(true);
-                  }}
+                  onLiquidate={handleOnLiquidate}
                 />
               ))}
             </div>
@@ -343,10 +343,9 @@ export default function LiquidationAlert() {
         </div>
       </div>
 
-      {/* Liquidation Modal */}
       {showLiquidateModal && (
         <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="rounded-lg p-6 w-[28.8rem] max-w-[28.8rem] mx-4 border border-gray-600" style={{backgroundColor: 'var(--background)'}}>
+          <div className="rounded-lg p-6 w-[28.8rem] max-w-[28.8rem] mx-4 border border-gray-600 shadow-2xl" style={{ backgroundColor: 'var(--background)' }}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-white">
                 Liquidate Account
@@ -364,7 +363,6 @@ export default function LiquidationAlert() {
             </div>
 
             <div className="space-y-4">
-              {/* Borrower Address */}
               <div>
                 <label className="text-sm text-gray-300 mb-2 block">Borrower Address</label>
                 <input
@@ -376,7 +374,6 @@ export default function LiquidationAlert() {
                 />
               </div>
 
-              {/* Repay Token */}
               <div>
                 <label className="text-sm text-gray-300 mb-2 block">Repay Token</label>
                 <select
@@ -385,10 +382,10 @@ export default function LiquidationAlert() {
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:border-orange-500"
                 >
                   {REPAY_TOKEN_KEYS.map((key) => {
-                    const address = getAddress(key);
-                    const info = getTokenInfo(address);
+                    const addr = getAddress(key);
+                    const info = getTokenInfo(addr);
                     return (
-                      <option key={key} value={address}>
+                      <option key={key} value={addr}>
                         {info.symbol}
                       </option>
                     );
@@ -396,7 +393,6 @@ export default function LiquidationAlert() {
                 </select>
               </div>
 
-              {/* Repay Amount */}
               <div>
                 <label className="text-sm text-gray-300 mb-2 block">Repay Amount</label>
                 <input
@@ -408,7 +404,6 @@ export default function LiquidationAlert() {
                 />
               </div>
 
-              {/* Collateral Token */}
               <div>
                 <label className="text-sm text-gray-300 mb-2 block">Collateral Token to Seize</label>
                 <select
@@ -417,10 +412,10 @@ export default function LiquidationAlert() {
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:border-orange-500"
                 >
                   {COLLATERAL_TOKEN_KEYS.map((key) => {
-                    const address = getAddress(key);
-                    const info = getTokenInfo(address);
+                    const addr = getAddress(key);
+                    const info = getTokenInfo(addr);
                     return (
-                      <option key={key} value={address}>
+                      <option key={key} value={addr}>
                         {info.symbol}
                       </option>
                     );
@@ -428,7 +423,6 @@ export default function LiquidationAlert() {
                 </select>
               </div>
 
-              {/* Info Box */}
               <div className="bg-orange-500/10 border border-orange-500/30 p-3 rounded">
                 <p className="text-xs text-orange-400">
                   💡 You will repay the borrower&apos;s debt and receive their collateral + 5% bonus.
@@ -436,19 +430,18 @@ export default function LiquidationAlert() {
                 </p>
               </div>
 
-              {/* Action Buttons */}
               <div className="flex gap-2">
                 <button
                   onClick={handleLiquidate}
                   disabled={!borrowerAddress || !repayAmount || isApproving || isLiquidating || isLiquidationConfirming}
-                  className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded transition-colors border border-gray-600 font-semibold"
+                  className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded transition-colors border border-gray-600 font-semibold active:scale-[0.98]"
                 >
-                  {isApproving 
-                    ? "Approving..." 
-                    : isLiquidating 
-                      ? "Confirming..." 
-                      : isLiquidationConfirming 
-                        ? "Liquidating..." 
+                  {isApproving
+                    ? "Approving..."
+                    : isLiquidating
+                      ? "Confirming..."
+                      : isLiquidationConfirming
+                        ? "Liquidating..."
                         : "💥 Liquidate Now"
                   }
                 </button>
@@ -460,4 +453,5 @@ export default function LiquidationAlert() {
     </>
   );
 }
+
 

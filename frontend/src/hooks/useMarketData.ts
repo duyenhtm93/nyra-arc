@@ -4,6 +4,7 @@ import { useReadContract, useReadContracts } from "wagmi";
 import { ABIs, Addresses } from "@/abi/contracts";
 import { formatUnits } from "viem";
 import { getTokenInfo } from "@/utils/tokenInfo";
+import { useMemo, useEffect } from "react";
 
 // Hook để lấy thông tin từ PriceOracle
 const chainId = 5042002 as const;
@@ -16,6 +17,9 @@ function getAddress(map: Record<string, { address: string }>, label: string) {
   return entry.address as `0x${string}`;
 }
 
+// RAY precision for interest index calculations
+const RAY = BigInt(1e27);
+
 export function useTokenPrice(tokenAddress: string) {
   const { data: price, isLoading, error } = useReadContract({
     address: getAddress(Addresses.ManualPriceOracle, "ManualPriceOracle"),
@@ -25,108 +29,25 @@ export function useTokenPrice(tokenAddress: string) {
   });
 
   return {
-    price: price ? Number(formatUnits(price, 8)) : 0, // PriceOracle returns 8 decimals
+    price: price ? Number(formatUnits(price as bigint, 8)) : undefined,
     isLoading,
     error,
   };
 }
 
-// Hook để lấy interest rates từ LoanManager
-export function useInterestRates(tokenAddress: string) {
-  const { data: rates, isLoading, error } = useReadContract({
-    address: getAddress(Addresses.LoanManager, "LoanManager"),
-    abi: ABIs.LoanManager,
-    functionName: "ratesByToken",
-    args: [tokenAddress as `0x${string}`],
-  });
-
-  return {
-    borrowRate: rates ? Number(rates[0]) / 100 : 0, // Convert from bps to %
-    lendRate: rates ? Number(rates[1]) / 100 : 0,
-    isLoading,
-    error,
-  };
-}
-
-// Hook để lấy treasury stats từ LoanManager
-export function useTreasuryStats(tokenAddress: string) {
-  const { data: treasury, isLoading, error } = useReadContract({
-    address: getAddress(Addresses.LoanManager, "LoanManager"),
-    abi: ABIs.LoanManager,
-    functionName: "treasury",
-    args: [tokenAddress as `0x${string}`],
-  });
-
-  // Hook để lấy available liquidity từ LoanManager
-  const { data: availableLiquidity, isLoading: liquidityLoading, error: liquidityError } = useReadContract({
-    address: getAddress(Addresses.LoanManager, "LoanManager"),
-    abi: ABIs.LoanManager,
-    functionName: "getAvailableLiquidity",
-    args: [tokenAddress as `0x${string}`],
-  });
-
-
-  // Get token info to determine correct decimals
-  const tokenInfo = getTokenInfo(tokenAddress);
-  
-  // Convert raw data to numbers, with correct decimals
-  // treasury can be either array [totalDeposits, totalBorrows, totalRepayments] or object
-  const totalDeposits = treasury 
-    ? Number(formatUnits((Array.isArray(treasury) ? treasury[0] : (treasury as any).totalDeposits) ?? BigInt(0), tokenInfo.decimals))
-    : 0;
-  const totalBorrows = treasury 
-    ? Number(formatUnits((Array.isArray(treasury) ? treasury[1] : (treasury as any).totalBorrows) ?? BigInt(0), tokenInfo.decimals))
-    : 0;
-  const totalRepayments = treasury 
-    ? Number(formatUnits((Array.isArray(treasury) ? treasury[2] : (treasury as any).totalRepayments) ?? BigInt(0), tokenInfo.decimals))
-    : 0;
-  
-  // Available liquidity từ contract
-  const availableLiquidityAmount = availableLiquidity ? Number(formatUnits(availableLiquidity, tokenInfo.decimals)) : 0;
-
-  return {
-    totalDeposits,
-    totalBorrows,
-    totalRepayments,
-    availableLiquidity: availableLiquidityAmount,
-    isLoading: isLoading || liquidityLoading,
-    error: error || liquidityError,
-  };
-}
-
-// Hook để lấy LTV từ CollateralManager
-export function useTokenLTV(tokenAddress: string) {
-  const { data: config, isLoading, error } = useReadContract({
-    address: getAddress(Addresses.CollateralManager, "CollateralManager"),
-    abi: ABIs.CollateralManager,
-    functionName: "tokenConfig",
-    args: [tokenAddress as `0x${string}`],
-  });
-
-  return {
-    ltv: config ? Number((config as any).ltv ?? (Array.isArray(config) ? config[1] : 0)) : 0,
-    liquidationThreshold: config ? Number((config as any).liquidationThreshold ?? (Array.isArray(config) ? config[2] : 0)) : 0,
-    allowed: config ? Boolean((config as any).allowed ?? (Array.isArray(config) ? config[0] : false)) : false,
-    isLoading,
-    error,
-  };
-}
-
-// Hook tổng hợp cho Market data (OPTIMIZED - 1 batch query thay vì 25 queries)
-export function useMarketData() {
-  const tokenAddresses = [
+// Optimized Market data hook
+export function useMarketData(refreshKey?: number) {
+  const tokenAddresses = useMemo(() => [
     getAddress(Addresses.BTC, "BTC"),
     getAddress(Addresses.ETH, "ETH"),
     getAddress(Addresses.BNB, "BNB"),
     getAddress(Addresses.USDC, "USDC"),
     getAddress(Addresses.EURC, "EURC"),
-    getAddress(Addresses.NYRA, "NYRA"),
-  ];
+  ], []);
 
-  // Batch tất cả queries thành 1 call duy nhất (25 queries → 1 batch)
-  const { data, isLoading, error } = useReadContracts({
+  const { data, isLoading: contractsLoading, error: contractsError, refetch } = useReadContracts({
     contracts: tokenAddresses.flatMap((tokenAddress) => [
-      // Price from PriceOracle
+      // 0: Price from PriceOracle
       {
         address: getAddress(Addresses.ManualPriceOracle, "ManualPriceOracle"),
         abi: ABIs.ManualPriceOracle,
@@ -134,15 +55,31 @@ export function useMarketData() {
         args: [tokenAddress as `0x${string}`],
         chainId,
       },
-      // Rates from LoanManager
+      // 1: Borrow Rate (bps)
       {
         address: getAddress(Addresses.LoanManager, "LoanManager"),
         abi: ABIs.LoanManager,
-        functionName: "ratesByToken",
+        functionName: "getBorrowRate",
         args: [tokenAddress as `0x${string}`],
         chainId,
       },
-      // Treasury from LoanManager
+      // 2: Supply Rate (bps)
+      {
+        address: getAddress(Addresses.LoanManager, "LoanManager"),
+        abi: ABIs.LoanManager,
+        functionName: "getSupplyRate",
+        args: [tokenAddress as `0x${string}`],
+        chainId,
+      },
+      // 3: Utilization (bps)
+      {
+        address: getAddress(Addresses.LoanManager, "LoanManager"),
+        abi: ABIs.LoanManager,
+        functionName: "getUtilizationRate",
+        args: [tokenAddress as `0x${string}`],
+        chainId,
+      },
+      // 4: Treasury Statistics (includes scales and indexes)
       {
         address: getAddress(Addresses.LoanManager, "LoanManager"),
         abi: ABIs.LoanManager,
@@ -150,15 +87,7 @@ export function useMarketData() {
         args: [tokenAddress as `0x${string}`],
         chainId,
       },
-      // Available Liquidity from LoanManager
-      {
-        address: getAddress(Addresses.LoanManager, "LoanManager"),
-        abi: ABIs.LoanManager,
-        functionName: "getAvailableLiquidity",
-        args: [tokenAddress as `0x${string}`],
-        chainId,
-      },
-      // LTV from CollateralManager
+      // 5: Token LTV Config (from CollateralManager)
       {
         address: getAddress(Addresses.CollateralManager, "CollateralManager"),
         abi: ABIs.CollateralManager,
@@ -167,42 +96,79 @@ export function useMarketData() {
         chainId,
       },
     ]),
+    query: {
+      staleTime: 15000,
+      refetchOnWindowFocus: false,
+      refetchInterval: false,
+    },
   });
 
-  // Parse results (mỗi token có 5 results liên tiếp)
-  const marketData = tokenAddresses.map((tokenAddress, tokenIndex) => {
-    const baseIndex = tokenIndex * 5;
-    const tokenInfo = getTokenInfo(tokenAddress);
-    
-    const priceRaw = data?.[baseIndex]?.result as bigint | undefined;
-    const ratesRaw = data?.[baseIndex + 1]?.result as readonly [bigint, bigint] | undefined;
-    const treasuryRaw = data?.[baseIndex + 2]?.result as readonly [bigint, bigint, bigint] | undefined;
-    const liquidityRaw = data?.[baseIndex + 3]?.result as bigint | undefined;
-    const configRaw = data?.[baseIndex + 4]?.result as { ltv: bigint; liquidationThreshold: bigint; allowed: boolean } | undefined;
+  // Trigger refetch when refreshKey changes (Immediate update)
+  useEffect(() => {
+    if (refreshKey !== undefined && refreshKey > 0) {
+      refetch();
+    }
+  }, [refreshKey, refetch]);
 
-    const price = priceRaw ? Number(formatUnits(priceRaw, 8)) : 0;
-    const borrowRate = ratesRaw ? Number(ratesRaw[0]) / 100 : 0;
-    const lendRate = ratesRaw ? Number(ratesRaw[1]) / 100 : 0;
-    const totalDeposits = treasuryRaw ? Number(formatUnits(treasuryRaw[0], tokenInfo.decimals)) : 0;
-    const totalBorrowed = treasuryRaw ? Number(formatUnits(treasuryRaw[1], tokenInfo.decimals)) : 0;
-    const availableLiquidity = liquidityRaw ? Number(formatUnits(liquidityRaw, tokenInfo.decimals)) : 0;
-    const ltv = configRaw?.ltv ? Number(configRaw.ltv) : 0;
+  const marketData = useMemo(() => {
+    return tokenAddresses.map((tokenAddress, tokenIndex) => {
+      const baseIndex = tokenIndex * 6;
+      const tokenInfo = getTokenInfo(tokenAddress);
 
-    return {
-      tokenAddress,
-      asset: tokenInfo.symbol,
-      icon: tokenInfo.icon,
-      price,
-      borrowRate,
-      lendRate,
-      totalSupplied: availableLiquidity,
-      totalBorrowed,
-      ltv,
-      utilization: totalDeposits > 0 ? (totalBorrowed / totalDeposits) * 100 : 0,
-      isLoading: false,
-      error: null,
-    };
-  });
+      const priceResult = data?.[baseIndex];
+      const borrowRateResult = data?.[baseIndex + 1];
+      const supplyRateResult = data?.[baseIndex + 2];
+      const utilResult = data?.[baseIndex + 3];
+      const treasuryResult = data?.[baseIndex + 4];
+      const configResult = data?.[baseIndex + 5];
+
+      const priceRaw = priceResult?.result as bigint | undefined;
+      const borrowRateBps = borrowRateResult?.result as bigint | undefined;
+      const supplyRateBps = supplyRateResult?.result as bigint | undefined;
+      const utilBps = utilResult?.result as bigint | undefined;
+      const treasuryRaw = treasuryResult?.result as any;
+      const configRaw = configResult?.result as any;
+
+      // Extract from treasury struct: totalDeposits, totalBorrows, lastUpdate, borrowIndex, supplyIndex, reserveFactor
+      const scaledDeposits = BigInt(treasuryRaw?.[0] || 0);
+      const scaledBorrows = BigInt(treasuryRaw?.[1] || 0);
+      const borrowIndex = BigInt(treasuryRaw?.[3] || RAY);
+      const supplyIndex = BigInt(treasuryRaw?.[4] || RAY);
+
+      // Calculate actual amounts: (scaled * index) / RAY
+      const actualDeposits = (scaledDeposits * supplyIndex) / RAY;
+      const actualBorrows = (scaledBorrows * borrowIndex) / RAY;
+
+      const price = priceRaw ? Number(formatUnits(priceRaw, 8)) : 0;
+      const borrowRate = borrowRateBps ? Number(borrowRateBps) / 100 : 0;
+      const lendRate = supplyRateBps ? Number(supplyRateBps) / 100 : 0;
+      const utilization = utilBps ? Number(utilBps) / 100 : 0;
+
+      const totalSupplied = Number(formatUnits(actualDeposits, tokenInfo.decimals));
+      const totalBorrowed = Number(formatUnits(actualBorrows, tokenInfo.decimals));
+
+      const ltv = configRaw?.ltv ? Number(configRaw.ltv) : (Array.isArray(configRaw) ? Number(configRaw[1]) : 0);
+      const liquidationThreshold = configRaw?.liquidationThreshold ? Number(configRaw.liquidationThreshold) : (Array.isArray(configRaw) ? Number(configRaw[2]) : 0);
+
+      const hasError = priceResult?.status === 'failure';
+
+      return {
+        tokenAddress,
+        asset: tokenInfo.symbol,
+        icon: tokenInfo.icon,
+        price: price === 0 && contractsLoading ? undefined : price,
+        borrowRate,
+        lendRate,
+        totalSupplied,
+        totalBorrowed,
+        ltv: ltv || 75,
+        liquidationThreshold: liquidationThreshold || 80,
+        utilization,
+        isLoading: contractsLoading,
+        error: hasError || contractsError,
+      };
+    });
+  }, [data, tokenAddresses, contractsLoading, contractsError]);
 
   return marketData;
 }
